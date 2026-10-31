@@ -3,6 +3,9 @@
 CameraProfileStudio は、LUT作成支援に重視を置いたオープンソースの Windows ソフトウェアです。
 自己満足の開発である為、Issue・PRの対応が難しいです。
 
+## 現在開発中
+Release未定
+
 ## 主な機能
 
 ### １．高度な LUT 作成支援
