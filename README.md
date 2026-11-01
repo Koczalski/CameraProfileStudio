@@ -60,6 +60,6 @@ Release未定
 
 未記載
 
-### 連絡先
+## 連絡先
 
 Discord: https://discord.com/users/618663163914878986
