@@ -1,0 +1,78 @@
+{
+  "name": "Little CMS (LittleCMS) 2 - lcms2.dll (x64, MSVC, float32 ctypes use)",
+  "upstream": {
+    "project": "https://github.com/mm2/Little-CMS",
+    "release_tag": "lcms2.17",
+    "tag_resolves_to_commit": "5176347635785e53ee5cee92328f76fda766ecc6",
+    "tag_type": "lightweight (git ls-remote refs/tags/lcms2.17)",
+    "version": "2.17",
+    "LCMS_VERSION": 2170,
+    "source_archive_url": "https://github.com/mm2/Little-CMS/archive/refs/tags/lcms2.17.tar.gz",
+    "source_archive_sha256": "6E6F6411DB50E85AE8FF7777F01B2DA0614AAC13B7B9FCBEA66DC56A1BC71418",
+    "source_archive_local": ".tools/lcms/download/Little-CMS-lcms2.17.tar.gz",
+    "source_archive_entries": 403,
+    "source_extracted_to": ".tools/lcms/Little-CMS-lcms2.17"
+  },
+  "license": {
+    "name": "MIT (Copyright (c) 2023 Marti Maria Saguer)",
+    "files_installed": ["LICENSE", "AUTHORS"],
+    "note": "Upstream root has no COPYING file; LICENSE (MIT) is the license text shipped with the source."
+  },
+  "installed_binary": {
+    "file": "lcms2.dll",
+    "sha256": "F9E85BFB33FBDE86B413571E2EB01ABA65E88B848C6179DD0B28A713388E2E83",
+    "bytes": 579584,
+    "machine": "x64 (8664)",
+    "named_exports": 376,
+    "required_exports_verified": [
+      "cmsGetEncodedCMMversion",
+      "cmsCreate_sRGBProfile",
+      "cmsCreateXYZProfile",
+      "cmsCreateTransform",
+      "cmsDoTransform",
+      "cmsDeleteTransform",
+      "cmsCloseProfile"
+    ],
+    "export_mechanism": "__declspec(dllexport) via CMS_DLL_BUILD (CMSAPI in include/lcms2.h); x64 Release project has no .def file",
+    "reproducibility_note": "Built from the pinned archive; the PE timestamp/PDB GUID make a byte-identical rebuild unlikely, so the sha256 above identifies this exact artifact."
+  },
+  "runtime_dependencies": {
+    "imports": ["KERNEL32.dll"],
+    "c_runtime": "Static /MT (MultiThreaded) CRT: no VCRUNTIME140.dll, MSVCP140.dll, or UCRT api-ms-win-crt redistributable needed at runtime",
+    "host_requirements": "Windows x64 with KERNEL32 (any supported Windows 10/11). Loaded from CPython 3.12.15 64-bit via ctypes.CDLL. No PATH or registry changes needed."
+  },
+  "toolchain_used": {
+    "visual_studio": "Visual Studio 2022 Community",
+    "msvc": "14.44.35207 (cl.exe under VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64)",
+    "msbuild": "17.14.23.42201",
+    "platform_toolset": "v143",
+    "dumpbin": "14.44.35219.0"
+  },
+  "build_instructions": {
+    "project": "Projects/VC2022/lcms2_DLL/lcms2_DLL.vcxproj (official project; config Release|x64; OutDir ..\\..\\..\\bin\\)",
+    "preprocessor_defines": "WIN32;NDEBUG;_WINDOWS;_USRDLL;CMS_DLL_BUILD;_CRT_SECURE_NO_WARNINGS",
+    "optimization": "Full (/O2 equivalent), WholeProgramOptimization true, FavorSizeOrSpeed=Speed",
+    "steps": [
+      "curl.exe -sSL -o .tools/lcms/download/Little-CMS-lcms2.17.tar.gz https://github.com/mm2/Little-CMS/archive/refs/tags/lcms2.17.tar.gz",
+      "Get-FileHash .tools/lcms/download/Little-CMS-lcms2.17.tar.gz -Algorithm SHA256  # must equal 6E6F6411DB50E85AE8FF7777F01B2DA0614AAC13B7B9FCBEA66DC56A1BC71418",
+      "tar.exe -tzf <archive> (checked: single top dir Little-CMS-lcms2.17, no absolute or .. paths); tar.exe -xzf <archive> -C .tools/lcms",
+      "cmd.exe /d /c \"\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul && msbuild .tools\\lcms\\Little-CMS-lcms2.17\\Projects\\VC2022\\lcms2_DLL\\lcms2_DLL.vcxproj /nologo /m /p:Configuration=Release /p:Platform=x64 /v:minimal\"   (environment is local to this cmd subprocess; host PATH untouched)",
+      "copy .tools/lcms/Little-CMS-lcms2.17/bin/lcms2.dll, LICENSE, AUTHORS into src/camera_profile_studio/vendor/lcms2/",
+      "dumpbin /exports|/dependents /headers on the installed DLL (exports and KERNEL32-only imports verified)",
+      ".venv\\Scripts\\python.exe .tools\\lcms\\validate_lcms2.py src\\camera_profile_studio\\vendor\\lcms2\\lcms2.dll"
+    ],
+    "build_log": "output/lcms-build.log"
+  },
+  "validation": {
+    "script": ".tools/lcms/validate_lcms2.py",
+    "result": ".tools/lcms/validation.json",
+    "interpreter": "CPython 3.12.15 64-bit (.venv)",
+    "encoded_cmm_version": 2170,
+    "transform_format": "TYPE_RGB_FLT (0x44001C) in and out, float32 RGB sRGB->sRGB, 4096 fractional random samples plus awkward fractions",
+    "identity_tolerance_maxabs": 0.0001,
+    "identity_maxabs_observed": 3.725290298461914e-09,
+    "identity_configurations": ["perceptual", "relative_colorimetric"] ,
+    "non_identity_control": "sRGB white -> XYZ D50 (0.9642, 1.0, 0.8249) via cmsCreateXYZProfile, TYPE_XYZ_FLT 0x49001C",
+    "result": "PASS"
+  }
+}

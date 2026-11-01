@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "camera-profile-studio"
+version = "0.2.5"
+description = "Headless ICC/DCP color engine and Windows Camera Profile Studio desktop application"
+requires-python = ">=3.12,<3.14"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+  "numpy==2.2.6",
+  "scipy==1.15.3",
+  "colour-science==0.4.6",
+  "Pillow==11.2.1",
+  "opencv-python-headless==4.11.0.86",
+  "tifffile==2025.5.10",
+]
+
+[project.optional-dependencies]
+gui = ["PySide6==6.9.1"]
+raw = ["rawpy==0.25.1"]
+test = ["pytest==8.3.5", "pytest-qt==4.4.0"]
+build = ["Nuitka==2.7.12", "ordered-set==4.1.0", "zstandard==0.23.0"]
+
+[project.scripts]
+camera-profile-studio = "camera_profile_studio.cli:main"
+
+[project.gui-scripts]
+camera-profile-studio-gui = "camera_profile_studio.gui.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["camera_profile_studio*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+camera_profile_studio = ["resources/**/*", "vendor/lcms2/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+  "lcms: requires the real LittleCMS 2 native runtime",
+  "gui: requires PySide6 and a Qt platform plugin",
+  "reference: requires independently sourced reference data",
+  "windows: requires Windows-specific integration",
+]

@@ -1,0 +1,48 @@
+name: Windows standalone distribution
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.15'
+          architecture: x64
+      - name: Validate fresh checkout isolation and source dependencies
+        shell: pwsh
+        run: ./scripts/build-fresh-source.ps1 -ValidateOnly
+      - name: Create pinned build environment
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          if ($LASTEXITCODE -ne 0) { throw 'Venv creation failed' }
+          .venv/Scripts/python.exe -m pip install -r requirements-lock.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned dependency installation failed' }
+          .venv/Scripts/python.exe -m pip install --no-deps --no-build-isolation -e .
+          if ($LASTEXITCODE -ne 0) { throw 'Editable installation failed' }
+      - name: Stage source, acquire pinned test inputs, run full suite, build and hosted smoke
+        shell: pwsh
+        run: ./scripts/build-fresh-source.ps1 -BuildApproved
+      # Hosted smoke includes CLI convert/look/match/image-look, offscreen GUI and
+      # protected installer/uninstall. Native desktop/window acceptance is NOT run.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: CameraProfileStudio-0.2.5-Windows-x64-unsigned-hosted-not-desktop-accepted
+          path: |
+            output/releases/0.2.5/CameraProfileStudio-0.2.5-Setup.exe
+            output/releases/0.2.5/CameraProfileStudio-0.2.5-Portable.zip
+            output/releases/0.2.5/CameraProfileStudio-0.2.5-Source.zip
+            output/releases/0.2.5/DELIVERY_SHA256SUMS.txt
+            output/releases/0.2.5/fresh-build-inputs.json
+            output/releases/0.2.5/source-tests.log
+            output/releases/0.2.5/source-tests.xml
+            output/releases/0.2.5/workspace/output/distribution/*.log
+            output/releases/0.2.5/workspace/output/distribution/*.json
+            output/releases/0.2.5/workspace/output/distribution/SHA256.txt
+            output/releases/0.2.5/workspace/output/distribution/inventory.csv
+            output/releases/0.2.5/workspace/output/distribution/final-smoke/**
+            output/releases/0.2.5/workspace/output/test-profile-acquisition/sources.json

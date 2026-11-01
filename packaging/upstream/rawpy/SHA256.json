@@ -1,0 +1,22 @@
+[
+    {
+        "file":  "build-windows.ps1",
+        "Hash":  "A841179E74183C90A9C6B8530D6B9E6889970DC60C78E762D1825B8E7A3EEF4C"
+    },
+    {
+        "file":  "ci.yml",
+        "Hash":  "CCAB65ADA76C38F4177DA90DBFF9DDB660FB25C31CBB6D1A3E414779ECA70C4C"
+    },
+    {
+        "file":  "lcms-add-missing-export.patch",
+        "Hash":  "8DE2C9832A15324289CD856674A4FF69940B46B326659C1DC84895AFC0EF60A1"
+    },
+    {
+        "file":  "LICENSE",
+        "Hash":  "D8BCA797BBAAB143CF2986C0285118DB81AFF769F500E9AF0C2A5BB74407E9F3"
+    },
+    {
+        "file":  "setup.py",
+        "Hash":  "632F13E3D6CD40ED355D606A0BCBE2CD9D05346E69962453CABAE94CE44E123E"
+    }
+]

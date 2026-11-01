@@ -1,0 +1,697 @@
+[
+  {
+    "archive": "pyside-setup-everywhere-src-6.9.1.tar.xz",
+    "member": "pyside-setup-everywhere-src-6.9.1/LICENSES/LicenseRef-Qt-Commercial.txt",
+    "notice": "upstream-source/PySide6 and Shiboken6/LICENSES/LicenseRef-Qt-Commercial.txt"
+  },
+  {
+    "archive": "pyside-setup-everywhere-src-6.9.1.tar.xz",
+    "member": "pyside-setup-everywhere-src-6.9.1/examples/datavisualization/graphgallery/data/license.txt",
+    "notice": "upstream-source/PySide6 and Shiboken6/examples/datavisualization/graphgallery/data/license.txt"
+  },
+  {
+    "archive": "pyside-setup-everywhere-src-6.9.1.tar.xz",
+    "member": "pyside-setup-everywhere-src-6.9.1/examples/graphs/3d/widgetgraphgallery/data/license.txt",
+    "notice": "upstream-source/PySide6 and Shiboken6/examples/graphs/3d/widgetgraphgallery/data/license.txt"
+  },
+  {
+    "archive": "pyside-setup-everywhere-src-6.9.1.tar.xz",
+    "member": "pyside-setup-everywhere-src-6.9.1/examples/webenginequick/nanobrowser/icons/3rdparty/COPYING",
+    "notice": "upstream-source/PySide6 and Shiboken6/examples/webenginequick/nanobrowser/icons/3rdparty/COPYING"
+  },
+  {
+    "archive": "pyside-setup-everywhere-src-6.9.1.tar.xz",
+    "member": "pyside-setup-everywhere-src-6.9.1/examples/webenginewidgets/simplebrowser/data/3rdparty/COPYING",
+    "notice": "upstream-source/PySide6 and Shiboken6/examples/webenginewidgets/simplebrowser/data/3rdparty/COPYING"
+  },
+  {
+    "archive": "pyside-setup-everywhere-src-6.9.1.tar.xz",
+    "member": "pyside-setup-everywhere-src-6.9.1/examples/widgets/dialogs/licensewizard/doc/licensewizard.png",
+    "notice": "upstream-source/PySide6 and Shiboken6/examples/widgets/dialogs/licensewizard/doc/licensewizard.png"
+  },
+  {
+    "archive": "pyside-setup-everywhere-src-6.9.1.tar.xz",
+    "member": "pyside-setup-everywhere-src-6.9.1/examples/widgets/dialogs/licensewizard/doc/licensewizard.rst",
+    "notice": "upstream-source/PySide6 and Shiboken6/examples/widgets/dialogs/licensewizard/doc/licensewizard.rst"
+  },
+  {
+    "archive": "pyside-setup-everywhere-src-6.9.1.tar.xz",
+    "member": "pyside-setup-everywhere-src-6.9.1/examples/widgets/dialogs/licensewizard/licensewizard.pyproject",
+    "notice": "upstream-source/PySide6 and Shiboken6/examples/widgets/dialogs/licensewizard/licensewizard.pyproject"
+  },
+  {
+    "archive": "pyside-setup-everywhere-src-6.9.1.tar.xz",
+    "member": "pyside-setup-everywhere-src-6.9.1/sources/pyside6/COPYING",
+    "notice": "upstream-source/PySide6 and Shiboken6/sources/pyside6/COPYING"
+  },
+  {
+    "archive": "pyside-setup-everywhere-src-6.9.1.tar.xz",
+    "member": "pyside-setup-everywhere-src-6.9.1/sources/pyside6/PySide6/licensecomment.txt",
+    "notice": "upstream-source/PySide6 and Shiboken6/sources/pyside6/PySide6/licensecomment.txt"
+  },
+  {
+    "archive": "pyside-setup-everywhere-src-6.9.1.tar.xz",
+    "member": "pyside-setup-everywhere-src-6.9.1/sources/shiboken6/ApiExtractor/COPYING",
+    "notice": "upstream-source/PySide6 and Shiboken6/sources/shiboken6/ApiExtractor/COPYING"
+  },
+  {
+    "archive": "pyside-setup-everywhere-src-6.9.1.tar.xz",
+    "member": "pyside-setup-everywhere-src-6.9.1/sources/shiboken6/COPYING",
+    "notice": "upstream-source/PySide6 and Shiboken6/sources/shiboken6/COPYING"
+  },
+  {
+    "archive": "pyside-setup-everywhere-src-6.9.1.tar.xz",
+    "member": "pyside-setup-everywhere-src-6.9.1/sources/shiboken6/COPYING.libsample",
+    "notice": "upstream-source/PySide6 and Shiboken6/sources/shiboken6/COPYING.libsample"
+  },
+  {
+    "archive": "pyside-setup-everywhere-src-6.9.1.tar.xz",
+    "member": "pyside-setup-everywhere-src-6.9.1/sources/shiboken6/COPYING.libshiboken",
+    "notice": "upstream-source/PySide6 and Shiboken6/sources/shiboken6/COPYING.libshiboken"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/LICENSES/LicenseRef-BSD-3-Clause-with-PCRE2-Binary-Like-Packages-Exception.txt",
+    "notice": "upstream-source/qtbase/LICENSES/LicenseRef-BSD-3-Clause-with-PCRE2-Binary-Like-Packages-Exception.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/LICENSES/LicenseRef-ICC-License.txt",
+    "notice": "upstream-source/qtbase/LICENSES/LicenseRef-ICC-License.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/LICENSES/LicenseRef-Lcs-Telegraphics.txt",
+    "notice": "upstream-source/qtbase/LICENSES/LicenseRef-Lcs-Telegraphics.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/LICENSES/LicenseRef-Qt-Commercial.txt",
+    "notice": "upstream-source/qtbase/LICENSES/LicenseRef-Qt-Commercial.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/LICENSES/LicenseRef-SHA1-Public-Domain.txt",
+    "notice": "upstream-source/qtbase/LICENSES/LicenseRef-SHA1-Public-Domain.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/cmake/3rdparty/extra-cmake-modules/COPYING-CMAKE-SCRIPTS",
+    "notice": "upstream-source/qtbase/cmake/3rdparty/extra-cmake-modules/COPYING-CMAKE-SCRIPTS"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/cmake/3rdparty/kwin/COPYING-CMAKE-SCRIPTS",
+    "notice": "upstream-source/qtbase/cmake/3rdparty/kwin/COPYING-CMAKE-SCRIPTS"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/doc/src/images/licensewizard-example.png",
+    "notice": "upstream-source/qtbase/doc/src/images/licensewizard-example.png"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/examples/widgets/dialogs/licensewizard/licensewizard.pro",
+    "notice": "upstream-source/qtbase/examples/widgets/dialogs/licensewizard/licensewizard.pro"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/examples/widgets/dialogs/licensewizard/licensewizard.qrc",
+    "notice": "upstream-source/qtbase/examples/widgets/dialogs/licensewizard/licensewizard.qrc"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/examples/widgets/doc/src/licensewizard.qdoc",
+    "notice": "upstream-source/qtbase/examples/widgets/doc/src/licensewizard.qdoc"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/licenseRule.json",
+    "notice": "upstream-source/qtbase/licenseRule.json"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/D3D12MemoryAllocator/LICENSE.txt",
+    "notice": "upstream-source/qtbase/src/3rdparty/D3D12MemoryAllocator/LICENSE.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/VulkanMemoryAllocator/LICENSE.txt",
+    "notice": "upstream-source/qtbase/src/3rdparty/VulkanMemoryAllocator/LICENSE.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/android/LICENSE",
+    "notice": "upstream-source/qtbase/src/3rdparty/android/LICENSE"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/blake2/COPYING",
+    "notice": "upstream-source/qtbase/src/3rdparty/blake2/COPYING"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/double-conversion/LICENSE",
+    "notice": "upstream-source/qtbase/src/3rdparty/double-conversion/LICENSE"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/easing/LICENSE",
+    "notice": "upstream-source/qtbase/src/3rdparty/easing/LICENSE"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/forkfd/LICENSE",
+    "notice": "upstream-source/qtbase/src/3rdparty/forkfd/LICENSE"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/freetype/LICENSE.txt",
+    "notice": "upstream-source/qtbase/src/3rdparty/freetype/LICENSE.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/gradle/LICENSE",
+    "notice": "upstream-source/qtbase/src/3rdparty/gradle/LICENSE"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/harfbuzz-ng/COPYING",
+    "notice": "upstream-source/qtbase/src/3rdparty/harfbuzz-ng/COPYING"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/icc/LICENSE.txt",
+    "notice": "upstream-source/qtbase/src/3rdparty/icc/LICENSE.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/libjpeg/COPYRIGHT.txt",
+    "notice": "upstream-source/qtbase/src/3rdparty/libjpeg/COPYRIGHT.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/libjpeg/LICENSE",
+    "notice": "upstream-source/qtbase/src/3rdparty/libjpeg/LICENSE"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/libjpeg/README.ijg",
+    "notice": "upstream-source/qtbase/src/3rdparty/libjpeg/README.ijg"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/libpng/LICENSE",
+    "notice": "upstream-source/qtbase/src/3rdparty/libpng/LICENSE"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/libpsl/src/LICENSE.chromium",
+    "notice": "upstream-source/qtbase/src/3rdparty/libpsl/src/LICENSE.chromium"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/md4c/LICENSE.md",
+    "notice": "upstream-source/qtbase/src/3rdparty/md4c/LICENSE.md"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/pixman/LICENSE",
+    "notice": "upstream-source/qtbase/src/3rdparty/pixman/LICENSE"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/rfc6234/LICENSE",
+    "notice": "upstream-source/qtbase/src/3rdparty/rfc6234/LICENSE"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/tinycbor/LICENSE",
+    "notice": "upstream-source/qtbase/src/3rdparty/tinycbor/LICENSE"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/xcb/LICENSE",
+    "notice": "upstream-source/qtbase/src/3rdparty/xcb/LICENSE"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/3rdparty/zlib/LICENSE",
+    "notice": "upstream-source/qtbase/src/3rdparty/zlib/LICENSE"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/corelib/kernel/LICENSE.QEVENTDISPATCHER_CF.txt",
+    "notice": "upstream-source/qtbase/src/corelib/kernel/LICENSE.QEVENTDISPATCHER_CF.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/dbus/LICENSE.LIBDBUS-1.txt",
+    "notice": "upstream-source/qtbase/src/dbus/LICENSE.LIBDBUS-1.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/gui/opengl/LICENSE.KHRONOS.txt",
+    "notice": "upstream-source/qtbase/src/gui/opengl/LICENSE.KHRONOS.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/gui/painting/LICENSE.QIMAGETRANSFORM.txt",
+    "notice": "upstream-source/qtbase/src/gui/painting/LICENSE.QIMAGETRANSFORM.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/gui/painting/LICENSE.XCONSORTIUM.txt",
+    "notice": "upstream-source/qtbase/src/gui/painting/LICENSE.XCONSORTIUM.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/gui/rhi/LICENSE.MiniEngine.txt",
+    "notice": "upstream-source/qtbase/src/gui/rhi/LICENSE.MiniEngine.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/gui/text/LICENSE.AGLFN.txt",
+    "notice": "upstream-source/qtbase/src/gui/text/LICENSE.AGLFN.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/gui/vulkan/LICENSE.txt",
+    "notice": "upstream-source/qtbase/src/gui/vulkan/LICENSE.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/plugins/platforms/cocoa/LICENSE.COCOA.txt",
+    "notice": "upstream-source/qtbase/src/plugins/platforms/cocoa/LICENSE.COCOA.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/testinternal/3rdparty/cmake/Copyright.txt",
+    "notice": "upstream-source/qtbase/src/testinternal/3rdparty/cmake/Copyright.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/testlib/3rdparty/catch2/LICENSE.txt",
+    "notice": "upstream-source/qtbase/src/testlib/3rdparty/catch2/LICENSE.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/testlib/3rdparty/cycle/LICENSE.txt",
+    "notice": "upstream-source/qtbase/src/testlib/3rdparty/cycle/LICENSE.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/testlib/3rdparty/linux/LICENSE.txt",
+    "notice": "upstream-source/qtbase/src/testlib/3rdparty/linux/LICENSE.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/testlib/3rdparty/valgrind/LICENSE.txt",
+    "notice": "upstream-source/qtbase/src/testlib/3rdparty/valgrind/LICENSE.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/src/widgets/doc/images/licensewizard-flow.png",
+    "notice": "upstream-source/qtbase/src/widgets/doc/images/licensewizard-flow.png"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/tests/auto/corelib/serialization/qxmlstream/LICENSE.XML-Test-Suite.txt",
+    "notice": "upstream-source/qtbase/tests/auto/corelib/serialization/qxmlstream/LICENSE.XML-Test-Suite.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/tests/manual/examples/widgets/tools/settingseditor/inifiles/licensepage.ini",
+    "notice": "upstream-source/qtbase/tests/manual/examples/widgets/tools/settingseditor/inifiles/licensepage.ini"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/tests/manual/rhi/shared/imgui/fonts/LICENSE.txt",
+    "notice": "upstream-source/qtbase/tests/manual/rhi/shared/imgui/fonts/LICENSE.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/tests/manual/rhi/shared/imgui/imgui/LICENSE.txt",
+    "notice": "upstream-source/qtbase/tests/manual/rhi/shared/imgui/imgui/LICENSE.txt"
+  },
+  {
+    "archive": "qtbase-everywhere-src-6.9.1.tar.xz",
+    "member": "qtbase-everywhere-src-6.9.1/util/gradientgen/LICENSE.WEBGRADIENTS.txt",
+    "notice": "upstream-source/qtbase/util/gradientgen/LICENSE.WEBGRADIENTS.txt"
+  },
+  {
+    "archive": "qtsvg-everywhere-src-6.9.1.tar.xz",
+    "member": "qtsvg-everywhere-src-6.9.1/LICENSES/LicenseRef-Qt-Commercial.txt",
+    "notice": "upstream-source/qtsvg/LICENSES/LicenseRef-Qt-Commercial.txt"
+  },
+  {
+    "archive": "qtsvg-everywhere-src-6.9.1.tar.xz",
+    "member": "qtsvg-everywhere-src-6.9.1/licenseRule.json",
+    "notice": "upstream-source/qtsvg/licenseRule.json"
+  },
+  {
+    "archive": "qtsvg-everywhere-src-6.9.1.tar.xz",
+    "member": "qtsvg-everywhere-src-6.9.1/src/svg/LICENSE.XSVG.txt",
+    "notice": "upstream-source/qtsvg/src/svg/LICENSE.XSVG.txt"
+  },
+  {
+    "archive": "qtsvg-everywhere-src-6.9.1.tar.xz",
+    "member": "qtsvg-everywhere-src-6.9.1/tests/baseline/data/svg_12_testsuite/LICENSE.txt",
+    "notice": "upstream-source/qtsvg/tests/baseline/data/svg_12_testsuite/LICENSE.txt"
+  },
+  {
+    "archive": "qtimageformats-everywhere-src-6.9.1.tar.xz",
+    "member": "qtimageformats-everywhere-src-6.9.1/LICENSES/LicenseRef-Qt-Commercial.txt",
+    "notice": "upstream-source/qtimageformats/LICENSES/LicenseRef-Qt-Commercial.txt"
+  },
+  {
+    "archive": "qtimageformats-everywhere-src-6.9.1.tar.xz",
+    "member": "qtimageformats-everywhere-src-6.9.1/licenseRule.json",
+    "notice": "upstream-source/qtimageformats/licenseRule.json"
+  },
+  {
+    "archive": "qtimageformats-everywhere-src-6.9.1.tar.xz",
+    "member": "qtimageformats-everywhere-src-6.9.1/src/3rdparty/libtiff/COPYRIGHT",
+    "notice": "upstream-source/qtimageformats/src/3rdparty/libtiff/COPYRIGHT"
+  },
+  {
+    "archive": "qtimageformats-everywhere-src-6.9.1.tar.xz",
+    "member": "qtimageformats-everywhere-src-6.9.1/src/3rdparty/libwebp/COPYING",
+    "notice": "upstream-source/qtimageformats/src/3rdparty/libwebp/COPYING"
+  },
+  {
+    "archive": "qtshadertools-everywhere-src-6.9.1.tar.xz",
+    "member": "qtshadertools-everywhere-src-6.9.1/LICENSES/LicenseRef-MIT-Khronos-old.txt",
+    "notice": "upstream-source/qtshadertools/LICENSES/LicenseRef-MIT-Khronos-old.txt"
+  },
+  {
+    "archive": "qtshadertools-everywhere-src-6.9.1.tar.xz",
+    "member": "qtshadertools-everywhere-src-6.9.1/LICENSES/LicenseRef-Qt-Commercial.txt",
+    "notice": "upstream-source/qtshadertools/LICENSES/LicenseRef-Qt-Commercial.txt"
+  },
+  {
+    "archive": "qtshadertools-everywhere-src-6.9.1.tar.xz",
+    "member": "qtshadertools-everywhere-src-6.9.1/licenseRule.json",
+    "notice": "upstream-source/qtshadertools/licenseRule.json"
+  },
+  {
+    "archive": "qtshadertools-everywhere-src-6.9.1.tar.xz",
+    "member": "qtshadertools-everywhere-src-6.9.1/src/3rdparty/SPIRV-Cross/COPYRIGHT.txt",
+    "notice": "upstream-source/qtshadertools/src/3rdparty/SPIRV-Cross/COPYRIGHT.txt"
+  },
+  {
+    "archive": "qtshadertools-everywhere-src-6.9.1.tar.xz",
+    "member": "qtshadertools-everywhere-src-6.9.1/src/3rdparty/SPIRV-Cross/LICENSE",
+    "notice": "upstream-source/qtshadertools/src/3rdparty/SPIRV-Cross/LICENSE"
+  },
+  {
+    "archive": "qtshadertools-everywhere-src-6.9.1.tar.xz",
+    "member": "qtshadertools-everywhere-src-6.9.1/src/3rdparty/glslang/COPYRIGHT.txt",
+    "notice": "upstream-source/qtshadertools/src/3rdparty/glslang/COPYRIGHT.txt"
+  },
+  {
+    "archive": "qtshadertools-everywhere-src-6.9.1.tar.xz",
+    "member": "qtshadertools-everywhere-src-6.9.1/src/3rdparty/glslang/LICENSE.txt",
+    "notice": "upstream-source/qtshadertools/src/3rdparty/glslang/LICENSE.txt"
+  },
+  {
+    "archive": "qttranslations-everywhere-src-6.9.1.tar.xz",
+    "member": "qttranslations-everywhere-src-6.9.1/LICENSES/LicenseRef-Qt-Commercial.txt",
+    "notice": "upstream-source/qttranslations/LICENSES/LicenseRef-Qt-Commercial.txt"
+  },
+  {
+    "archive": "qttranslations-everywhere-src-6.9.1.tar.xz",
+    "member": "qttranslations-everywhere-src-6.9.1/licenseRule.json",
+    "notice": "upstream-source/qttranslations/licenseRule.json"
+  },
+  {
+    "archive": "LibRaw-9646d776c7c61976080a8f2be67928df0750493e.tar.gz",
+    "member": "LibRaw-9646d776c7c61976080a8f2be67928df0750493e/COPYRIGHT",
+    "notice": "upstream-source/LibRaw/COPYRIGHT"
+  },
+  {
+    "archive": "LibRaw-9646d776c7c61976080a8f2be67928df0750493e.tar.gz",
+    "member": "LibRaw-9646d776c7c61976080a8f2be67928df0750493e/LICENSE.CDDL",
+    "notice": "upstream-source/LibRaw/LICENSE.CDDL"
+  },
+  {
+    "archive": "LibRaw-9646d776c7c61976080a8f2be67928df0750493e.tar.gz",
+    "member": "LibRaw-9646d776c7c61976080a8f2be67928df0750493e/LICENSE.LGPL",
+    "notice": "upstream-source/LibRaw/LICENSE.LGPL"
+  },
+  {
+    "archive": "LibRaw-cmake-6e26c9e73677dc04f9eb236a97c6a4dc225ba7e8.tar.gz",
+    "member": "LibRaw-cmake-6e26c9e73677dc04f9eb236a97c6a4dc225ba7e8/LICENSE",
+    "notice": "upstream-source/LibRaw-cmake/LICENSE"
+  },
+  {
+    "archive": "rawpy-zlib-1.3.1.tar.gz",
+    "member": "zlib-1.3.1/LICENSE",
+    "notice": "upstream-source/rawpy-zlib/LICENSE"
+  },
+  {
+    "archive": "rawpy-zlib-1.3.1.tar.gz",
+    "member": "zlib-1.3.1/contrib/dotzlib/LICENSE_1_0.txt",
+    "notice": "upstream-source/rawpy-zlib/contrib/dotzlib/LICENSE_1_0.txt"
+  },
+  {
+    "archive": "rawpy-libjpeg-turbo-3.1.0.tar.gz",
+    "member": "libjpeg-turbo-3.1.0/LICENSE.md",
+    "notice": "upstream-source/rawpy-libjpeg-turbo/LICENSE.md"
+  },
+  {
+    "archive": "rawpy-libjpeg-turbo-3.1.0.tar.gz",
+    "member": "libjpeg-turbo-3.1.0/README.ijg",
+    "notice": "upstream-source/rawpy-libjpeg-turbo/README.ijg"
+  },
+  {
+    "archive": "rawpy-libjpeg-turbo-3.1.0.tar.gz",
+    "member": "libjpeg-turbo-3.1.0/java/doc/legal/LICENSE",
+    "notice": "upstream-source/rawpy-libjpeg-turbo/java/doc/legal/LICENSE"
+  },
+  {
+    "archive": "rawpy-libjpeg-turbo-3.1.0.tar.gz",
+    "member": "libjpeg-turbo-3.1.0/release/License.rtf",
+    "notice": "upstream-source/rawpy-libjpeg-turbo/release/License.rtf"
+  },
+  {
+    "archive": "rawpy-jasper-4.2.4.tar.gz",
+    "member": "jasper-version-4.2.4/COPYRIGHT.txt",
+    "notice": "upstream-source/rawpy-jasper/COPYRIGHT.txt"
+  },
+  {
+    "archive": "rawpy-jasper-4.2.4.tar.gz",
+    "member": "jasper-version-4.2.4/LICENSE.txt",
+    "notice": "upstream-source/rawpy-jasper/LICENSE.txt"
+  },
+  {
+    "archive": "rawpy-lcms-2.16.tar.gz",
+    "member": "Little-CMS-lcms2.16/LICENSE",
+    "notice": "upstream-source/rawpy-lcms/LICENSE"
+  },
+  {
+    "archive": "rawpy-lcms-2.16.tar.gz",
+    "member": "Little-CMS-lcms2.16/plugins/fast_float/COPYING.GPL3",
+    "notice": "upstream-source/rawpy-lcms/plugins/fast_float/COPYING.GPL3"
+  },
+  {
+    "archive": "rawpy-lcms-2.16.tar.gz",
+    "member": "Little-CMS-lcms2.16/plugins/threaded/COPYING.GPL3",
+    "notice": "upstream-source/rawpy-lcms/plugins/threaded/COPYING.GPL3"
+  },
+  {
+    "archive": "rawpy-lcms-2.16.tar.gz",
+    "member": "Little-CMS-lcms2.16/utils/jpgicc/LICENSE_iccjpeg",
+    "notice": "upstream-source/rawpy-lcms/utils/jpgicc/LICENSE_iccjpeg"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/LICENSE.txt",
+    "notice": "upstream-source/rawpy-vcpkg-build/LICENSE.txt"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/NOTICE.txt",
+    "notice": "upstream-source/rawpy-vcpkg-build/NOTICE.txt"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/NOTICE_pt.txt",
+    "notice": "upstream-source/rawpy-vcpkg-build/NOTICE_pt.txt"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/comms-ublox/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/comms-ublox/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/cspice/License.txt",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/cspice/License.txt"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/discord-game-sdk/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/discord-game-sdk/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/egl-registry/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/egl-registry/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/exprtk/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/exprtk/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/ffnvcodec/LICENSE.txt",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/ffnvcodec/LICENSE.txt"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/ffnvcodec/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/ffnvcodec/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/gdcm/copyright.diff",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/gdcm/copyright.diff"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/gettimeofday/LICENSE",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/gettimeofday/LICENSE"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/hungarian/LICENSE.txt",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/hungarian/LICENSE.txt"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/irrlicht/LICENSE.txt",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/irrlicht/LICENSE.txt"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/libmesh/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/libmesh/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/libunistring/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/libunistring/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/loguru/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/loguru/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/lua/COPYRIGHT",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/lua/COPYRIGHT"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/mmx/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/mmx/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/monkeys-audio/license",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/monkeys-audio/license"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/opengl-registry/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/opengl-registry/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/pdcurses/LICENSE",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/pdcurses/LICENSE"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/pffft/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/pffft/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/physac/LICENSE",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/physac/LICENSE"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/pqp/LICENSE",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/pqp/LICENSE"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/sigslot/LICENSE",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/sigslot/LICENSE"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/strtk/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/strtk/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/tensorflow-common/LICENSE.txt",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/tensorflow-common/LICENSE.txt"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/tinyxml/License.txt",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/tinyxml/License.txt"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/treehh/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/treehh/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/vcpkg-cmake-config/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/vcpkg-cmake-config/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/vcpkg-get-python-packages/copyright",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/vcpkg-get-python-packages/copyright"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/ports/vulkan-sdk-components/LICENSE.txt",
+    "notice": "upstream-source/rawpy-vcpkg-build/ports/vulkan-sdk-components/LICENSE.txt"
+  },
+  {
+    "archive": "rawpy-vcpkg-build-2025.01.13.tar.gz",
+    "member": "vcpkg-2025.01.13/versions/l-/licensepp.json",
+    "notice": "upstream-source/rawpy-vcpkg-build/versions/l-/licensepp.json"
+  },
+  {
+    "archive": "Little-CMS-lcms2.17.tar.gz",
+    "member": "Little-CMS-lcms2.17/LICENSE",
+    "notice": "upstream-source/application-lcms/LICENSE"
+  },
+  {
+    "archive": "Little-CMS-lcms2.17.tar.gz",
+    "member": "Little-CMS-lcms2.17/plugins/fast_float/COPYING.GPL3",
+    "notice": "upstream-source/application-lcms/plugins/fast_float/COPYING.GPL3"
+  },
+  {
+    "archive": "Little-CMS-lcms2.17.tar.gz",
+    "member": "Little-CMS-lcms2.17/plugins/threaded/COPYING.GPL3",
+    "notice": "upstream-source/application-lcms/plugins/threaded/COPYING.GPL3"
+  },
+  {
+    "archive": "Little-CMS-lcms2.17.tar.gz",
+    "member": "Little-CMS-lcms2.17/utils/jpgicc/LICENSE_iccjpeg",
+    "notice": "upstream-source/application-lcms/utils/jpgicc/LICENSE_iccjpeg"
+  }
+]

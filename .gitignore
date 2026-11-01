@@ -1,1 +1,57 @@
-/.git/
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build / packaging output (Nuitka, Inno Setup, release scripts)
+build/
+dist/
+*.dist/
+*.build/
+*.onefile-build/
+release-*/
+build-logs/
+# Windows build launcher work folders (packaging/windows-launcher/b/<stamp>)
+packaging/windows-launcher/b/
+*.zip
+*.exe
+*.msi
+*.pyd
+*.dll
+*.so
+
+# Logs and local tool state
+*.log
+*.tmp
+.claude/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local settings written by the app or tests
+*.ini.bak
+
+# Third-party camera profiles and their upstream documents (GPL-3.0 projects,
+# per-profile redistribution terms not established). Fetch them with
+# packaging/testing/acquire_profiles.py; tests that need them skip otherwise.
+input/ccd_profiles/*
+!input/ccd_profiles/README.md
+
+# Generated validation output and test fixtures
+output/

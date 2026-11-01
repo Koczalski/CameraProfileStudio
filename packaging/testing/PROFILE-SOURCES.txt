@@ -1,0 +1,18 @@
+Test-only profile acquisition
+
+acquire_profiles.py is the bounded acquisition recipe copied from tasks/ccd/acquire.py.
+It retains all nine profile repository revisions and SHA-256 pins used by the existing
+source tests. No task logs, delivered artifacts, profiles, or private input are copied.
+
+Upstream sources:
+- google-code-export/photivo, revision 1f7142729588698980e4a098a3026d02b41001a5
+- RawTherapee/RawTherapee, revision b2ee504c47e5e6d5e054395aa12bf1fe43bd1c3c
+- Alexey-Danilchenko/Kodak-DCS-Tools, revision 3e80df2ca549ed49c0f966dcf036962a8736c137
+
+The recipe downloads COPYING/COPYING.3rd.party, LICENSE, profile README files and
+provenance documents alongside test input. Required COPYING/LICENSE retrieval errors
+fail acquisition. Individual profile redistribution rights remain unverified; a repository
+license must not be assumed to cover every profile. Profiles are input-only, NEVER
+part of application/Source/Portable/Setup artifacts. The generated sources.json records
+repository, revision, retrieval URL, content hash, byte size and document retrieval status.
+No camera-reproduction or photographic-accuracy claim is made by these fixtures.

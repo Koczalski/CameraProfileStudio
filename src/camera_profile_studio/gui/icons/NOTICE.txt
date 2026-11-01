@@ -1,0 +1,9 @@
+﻿Microsoft Fluent UI System Icons
+================================
+Source: https://github.com/microsoft/fluentui-system-icons
+Commit: 83b26348c811f072429427ff48362238656524fe
+Path pattern: assets/<Icon Name>/SVG/ic_fluent_<name>_24_regular.svg
+License: MIT (see LICENSE in this folder, fetched from the same commit)
+Files are unmodified; Camera Profile Studio recolours fill="#212121" at runtime
+from the active QPalette (src/camera_profile_studio/gui/icons.py).
+A runtime copy lives in src/camera_profile_studio/gui/icons/.
