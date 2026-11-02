@@ -19,12 +19,16 @@ EXCLUDED_SUFFIXES = {'.pyc', '.pyo', '.pyd', '.dll', '.exe', '.obj', '.o',
 def include(path: Path) -> bool:
     relative = path.relative_to(ROOT)
     excluded_dirs = EXCLUDED_DIRS
+    # Release output of any version (packaging/windows-launcher/release-*); folders only, not release-notes.md.
+    in_release_dir = any(part.startswith('release-') for part in relative.parts[:-1])
     # License collectors preserve upstream paths, including Nuitka's build/inline_copy notices.
     if (relative.parts[0] == 'licenses'
             and path.name.lower().startswith(('license', 'copying', 'copyright', 'notice'))
             and path.suffix.lower() in ('', '.txt', '.rst', '.md')):
         excluded_dirs = EXCLUDED_DIRS - {'build'}
+        in_release_dir = False
     return (not excluded_dirs.intersection(relative.parts)
+            and not in_release_dir
             and not any(part.endswith('.egg-info') for part in relative.parts)
             and path.suffix.lower() not in EXCLUDED_SUFFIXES
             and not path.is_symlink())
