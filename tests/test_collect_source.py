@@ -47,7 +47,8 @@ def repository(tmp_path) -> Path:
 
 
 def collected(repository: Path, script: str, destination: Path, cwd: Path) -> list[str]:
-    subprocess.run([sys.executable, script, str(destination)], cwd=cwd, check=True, capture_output=True, text=True, timeout=60)
+    result = subprocess.run([sys.executable, script, str(destination)], cwd=cwd, check=False, capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stdout + result.stderr
     with zipfile.ZipFile(destination) as archive:
         return archive.namelist()
 
