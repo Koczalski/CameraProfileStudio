@@ -1,3 +1,4 @@
+![Windows Build](https://github.com/Koczalski/CameraProfileStudio/actions/workflows/windows-distribution.yml/badge.svg)
 # Camera Profile Studio
 
 English | [日本語](README.ja.md)
