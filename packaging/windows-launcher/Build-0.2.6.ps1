@@ -650,7 +650,8 @@ function Invoke-Main {
         $exclude = @('__pycache__', '.pytest_cache')
         if ($RepoMode) {
             # リポジトリの作業用ファイルと、このビルド自身の出力先は複製しない（再帰コピーを防ぐ）。
-            $exclude += @('.git', '.venv', 'venv', '.mypy_cache', '.ruff_cache', "release-$Version*",
+            # release-* は過去の版の成果物も含む。複製すると Source.zip に入る。
+            $exclude += @('.git', '.venv', 'venv', '.mypy_cache', '.ruff_cache', 'release-*',
                 (Join-Path $Source 'output'), (Join-Path $Source 'build'), (Join-Path $Source 'dist'),
                 $BuildRoot, (Join-Path $Kit 'build-logs'))
         }

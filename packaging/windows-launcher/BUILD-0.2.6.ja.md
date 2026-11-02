@@ -73,4 +73,4 @@ Build-0.2.6.cmd -CacheRoot D:\cpsc         キャッシュの場所を変える
 
 ## リポジトリから実行する場合
 
-`packaging\windows-launcher\Build-0.2.6.cmd`（または同じフォルダーの `Build.bat`）をリポジトリ内から実行すると、隣に `CameraProfileStudio-0.2.6-Source` がない場合はリポジトリのルートをソースとして使います。`.git`・`output`・`.venv`・ビルドフォルダー（`b`）・`build-logs`・`release-0.2.6*` は複製しません。ビルドフォルダー・ログ・成果物はこのフォルダーの `b\`・`build-logs\`・`release-0.2.6\` にでき、いずれも `.gitignore` で除外しています。パスが長いという警告が出る場合は `Build-0.2.6.cmd -BuildRoot C:\cpsb` のように短い場所を指定してください。
+`packaging\windows-launcher\Build-0.2.6.cmd`（または同じフォルダーの `Build.bat`）をリポジトリ内から実行すると、隣に `CameraProfileStudio-0.2.6-Source` がない場合はリポジトリのルートをソースとして使います。`.git`・`output`・`.venv`・ビルドフォルダー（`b`）・`build-logs`・`release-*` は複製しません。ビルドフォルダー・ログ・成果物はこのフォルダーの `b\`・`build-logs\`・`release-0.2.6\` にでき、いずれも `.gitignore` で除外しています。パスが長いという警告が出る場合は `Build-0.2.6.cmd -BuildRoot C:\cpsb` のように短い場所を指定してください。
