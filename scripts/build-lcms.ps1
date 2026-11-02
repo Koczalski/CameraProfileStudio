@@ -16,7 +16,9 @@ $expected = '6E6F6411DB50E85AE8FF7777F01B2DA0614AAC13B7B9FCBEA66DC56A1BC71418'
 if (!(Test-Path $archive)) { Get-CpsFile -Url $url -Destination $archive -Sha256 $expected }
 if ((Get-FileHash $archive).Hash -ne $expected) { throw 'LittleCMS source archive SHA256 mismatch' }
 $source = Join-Path $work 'Little-CMS-lcms2.17'
-$vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+$vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+# vcvars64.bat looks vswhere.exe up on PATH and a miss on stderr stops this script. This process (and its children) only.
+$env:PATH = $env:PATH + ';' + (Split-Path $vswhere -Parent)
 $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 if (!$vs) { throw 'Visual Studio C++ x64 build tools are required' }
 $vcvars = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
