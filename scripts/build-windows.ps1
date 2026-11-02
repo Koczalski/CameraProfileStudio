@@ -1,4 +1,4 @@
-param([switch]$SkipCompile, [ValidateSet('', '0.2.6')][string]$ReleaseVersion = '')
+param([switch]$SkipCompile, [ValidateSet('', '0.2.7')][string]$ReleaseVersion = '')
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot/build-common.ps1"
 Set-CpsPhase 'lcms-and-environment'
@@ -7,12 +7,12 @@ Set-Location $root
 $stem = 'CameraProfileStudio'
 if ($ReleaseVersion) {
     if ($SkipCompile) { throw 'A new release must compile fresh source' }
-    if ($env:CPS_ISOLATED_BUILD -ne $root -or ($root -notlike '*/output/releases/0.2.6/workspace' -and $root -notlike '*\output\releases\0.2.6\workspace')) {
+    if ($env:CPS_ISOLATED_BUILD -ne $root -or ($root -notlike '*/output/releases/0.2.7/workspace' -and $root -notlike '*\output\releases\0.2.7\workspace')) {
         throw 'Use build-release.ps1 with an explicitly approved source freeze'
     }
     $stem += "-$ReleaseVersion"
-} elseif ((Get-Content "$root/pyproject.toml" -Raw) -match 'version = "0.2.6"') {
-    throw '0.2.6 cannot write legacy release output; use build-release.ps1'
+} elseif ((Get-Content "$root/pyproject.toml" -Raw) -match 'version = "0.2.7"') {
+    throw '0.2.7 cannot write legacy release output; use build-release.ps1'
 }
 $python = Join-Path $root '.venv/Scripts/python.exe'
 $out = Join-Path $root 'output/distribution'

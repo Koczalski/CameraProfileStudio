@@ -24,7 +24,7 @@ KEPT = (
     'pyproject.toml',
     'src/camera_profile_studio/module.py',
     'packaging/release_workspace.py',
-    'packaging/windows-launcher/Build-0.2.6.ps1',
+    'packaging/windows-launcher/Build-0.2.7.ps1',
     'docs/release-notes.md',
     'docs/release_checklist/steps.md',
     'docs/prerelease-1/steps.md',

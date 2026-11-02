@@ -47,7 +47,7 @@ if ($LASTEXITCODE -ge 8) { throw "robocopy failed with exit code $LASTEXITCODE" 
 exit 0
 """
 RELEASE_FOLDERS = ('release-0.2.5', 'release-0.2.6', 'release-0.2.6-1102-1423', 'release-0.2.7')
-KEPT = ('pyproject.toml', 'src/camera_profile_studio/module.py', 'packaging/windows-launcher/Build-0.2.6.cmd',
+KEPT = ('pyproject.toml', 'src/camera_profile_studio/module.py', 'packaging/windows-launcher/Build-0.2.7.cmd',
         'docs/release-notes.md', 'docs/release_checklist/steps.md')
 LEFT_OUT_OF_COPY = ('.git/config', '.venv/pyvenv.cfg', 'output/old.txt', 'build/old.txt', 'dist/old.txt',
                     'packaging/windows-launcher/b/1102-1423/old.txt', 'packaging/windows-launcher/build-logs/old.log',
@@ -110,6 +110,6 @@ def test_source_zip_has_no_release_folder(copied, tmp_path, monkeypatch):
     with zipfile.ZipFile(archive) as opened:
         names = opened.namelist()
     assert not [name for name in names if any(part.startswith('release-') for part in name.split('/')[:-1])]
-    for name in ('src/camera_profile_studio/module.py', 'packaging/windows-launcher/Build-0.2.6.cmd',
+    for name in ('src/camera_profile_studio/module.py', 'packaging/windows-launcher/Build-0.2.7.cmd',
                  'docs/release-notes.md', 'docs/release_checklist/steps.md', 'pyproject.toml'):
         assert name in names

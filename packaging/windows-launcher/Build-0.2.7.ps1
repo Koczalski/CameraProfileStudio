@@ -1,17 +1,17 @@
 ﻿#requires -Version 5.1
 <#
 .SYNOPSIS
-    Camera Profile Studio 0.2.6 を Windows でビルドします（Setup.exe / Portable.zip / Source.zip）。
+    Camera Profile Studio 0.2.7 を Windows でビルドします（Setup.exe / Portable.zip / Source.zip）。
 
 .DESCRIPTION
-    同梱ソースの公式手順（docs/BUILD_0.2.6.md）を、新しい短いビルドフォルダーで順に実行します。
+    同梱ソースの公式手順（docs/BUILD_0.2.7.md）を、新しい短いビルドフォルダーで順に実行します。
       1. 事前チェック（PC の設定は変更しません）
       2. ソースを新しいビルドフォルダーへ複製（元のソースフォルダーは変更しません）
       3. scripts/build-fresh-source.ps1 -ValidateOnly
       4. .venv の作成と、固定版の依存パッケージのインストール
       5. scripts/build-fresh-source.ps1 -BuildApproved
          （全テスト → LittleCMS → Nuitka → Inno Setup → 配布物の検査）
-      6. 成果物を release-0.2.6 フォルダーへコピーし、SHA-256 を照合
+      6. 成果物を release-0.2.7 フォルダーへコピーし、SHA-256 を照合
 
 .PARAMETER Python
     使う python.exe（3.12 x64）。省略時は py ランチャーと標準のインストール先から探します。
@@ -43,7 +43,7 @@ $ErrorActionPreference = 'Stop'
 # Windows PowerShell 5.1 の進捗表示は Invoke-WebRequest を大幅に遅くするため、子プロセスでも止める。
 $ProgressPreference = 'SilentlyContinue'
 
-$Version = '0.2.6'
+$Version = '0.2.7'
 $AppIdKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{B15FF861-C98A-4F3F-B46D-143C62935FA3}_is1'
 $Kit = $PSScriptRoot
 $Source = Join-Path $Kit "CameraProfileStudio-$Version-Source"

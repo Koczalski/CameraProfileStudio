@@ -31,18 +31,18 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: CameraProfileStudio-0.2.6-Windows-x64-unsigned-hosted-not-desktop-accepted
+          name: CameraProfileStudio-0.2.7-Windows-x64-unsigned-hosted-not-desktop-accepted
           path: |
-            output/releases/0.2.6/CameraProfileStudio-0.2.6-Setup.exe
-            output/releases/0.2.6/CameraProfileStudio-0.2.6-Portable.zip
-            output/releases/0.2.6/CameraProfileStudio-0.2.6-Source.zip
-            output/releases/0.2.6/DELIVERY_SHA256SUMS.txt
-            output/releases/0.2.6/fresh-build-inputs.json
-            output/releases/0.2.6/source-tests.log
-            output/releases/0.2.6/source-tests.xml
-            output/releases/0.2.6/workspace/output/distribution/*.log
-            output/releases/0.2.6/workspace/output/distribution/*.json
-            output/releases/0.2.6/workspace/output/distribution/SHA256.txt
-            output/releases/0.2.6/workspace/output/distribution/inventory.csv
-            output/releases/0.2.6/workspace/output/distribution/final-smoke/**
-            output/releases/0.2.6/workspace/output/test-profile-acquisition/sources.json
+            output/releases/0.2.7/CameraProfileStudio-0.2.7-Setup.exe
+            output/releases/0.2.7/CameraProfileStudio-0.2.7-Portable.zip
+            output/releases/0.2.7/CameraProfileStudio-0.2.7-Source.zip
+            output/releases/0.2.7/DELIVERY_SHA256SUMS.txt
+            output/releases/0.2.7/fresh-build-inputs.json
+            output/releases/0.2.7/source-tests.log
+            output/releases/0.2.7/source-tests.xml
+            output/releases/0.2.7/workspace/output/distribution/*.log
+            output/releases/0.2.7/workspace/output/distribution/*.json
+            output/releases/0.2.7/workspace/output/distribution/SHA256.txt
+            output/releases/0.2.7/workspace/output/distribution/inventory.csv
+            output/releases/0.2.7/workspace/output/distribution/final-smoke/**
+            output/releases/0.2.7/workspace/output/test-profile-acquisition/sources.json

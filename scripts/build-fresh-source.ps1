@@ -12,18 +12,18 @@ foreach ($tree in @('src','assets','packaging','scripts','docs','tests','license
 }
 foreach ($name in @('pyproject.toml','requirements-lock.txt','packaging/collect_source.py','packaging/release_workspace.py',
     'packaging/testing/acquire_profiles.py','packaging/testing/PROFILE-SOURCES.txt','packaging/upstream-sources.json',
-    'docs/IMAGE_LOOK_API.md','docs/BUILD_0.2.6.md','scripts/build-windows.ps1','scripts/build-lcms.ps1','scripts/build-common.ps1',
+    'docs/IMAGE_LOOK_API.md','docs/BUILD_0.2.7.md','scripts/build-windows.ps1','scripts/build-lcms.ps1','scripts/build-common.ps1',
     'scripts/verify_distribution.ps1','scripts/verify_distribution_image_look.py','tests/test_gui_workflows.py')) {
     if (!(Test-Path "$root/$name" -PathType Leaf)) { throw "Fresh source dependency missing: $name" }
 }
-if ((Get-Content "$root/pyproject.toml" -Raw) -notmatch 'version = "0.2.6"') { throw 'Expected 0.2.6 source' }
+if ((Get-Content "$root/pyproject.toml" -Raw) -notmatch 'version = "0.2.7"') { throw 'Expected 0.2.7 source' }
 if ($ValidateOnly) { Write-Output 'Fresh source dependencies and isolation guard: PASS (no build/test/install)'; return }
 if (!$BuildApproved) { throw 'Explicit fresh build authorization required; no build started' }
 . "$PSScriptRoot/build-common.ps1"
 Set-CpsPhase 'collect-and-stage'
 $python = Join-Path $root '.venv/Scripts/python.exe'
-if (!(Test-Path $python)) { throw 'Create the pinned local .venv first; see docs/BUILD_0.2.6.md' }
-$release = Join-Path $root 'output/releases/0.2.6'
+if (!(Test-Path $python)) { throw 'Create the pinned local .venv first; see docs/BUILD_0.2.7.md' }
+$release = Join-Path $root 'output/releases/0.2.7'
 $stage = [IO.Path]::GetFullPath((Join-Path $release 'workspace'))
 $previous = @{guard=$env:CPS_ISOLATED_BUILD; pythonpath=$env:PYTHONPATH; lcms=$env:CPS_LCMS2_DLL; qt=$env:QT_QPA_PLATFORM; updates=$env:CPS_DISABLE_UPDATE_CHECK}
 $location = Get-Location
@@ -99,18 +99,18 @@ try {
     }
     if ($testExit -ne 0) { throw 'Full source test suite failed; see source-tests.log' }
     Set-CpsPhase 'build-windows'
-    & "$stage/scripts/build-windows.ps1" -ReleaseVersion '0.2.6'
+    & "$stage/scripts/build-windows.ps1" -ReleaseVersion '0.2.7'
     Set-CpsPhase 'input-check'
     & $python "$stage/packaging/release_workspace.py" check "$release/fresh-build-inputs.json"
     if ($LASTEXITCODE -ne 0) { throw 'Fresh inputs changed during test/build' }
     Set-CpsPhase 'verify-distribution'
-    & "$stage/scripts/verify_distribution.ps1" -ReleaseVersion '0.2.6' -HostedCi
+    & "$stage/scripts/verify_distribution.ps1" -ReleaseVersion '0.2.7' -HostedCi
     Set-CpsPhase 'copy-and-hash'
-    foreach ($name in @('CameraProfileStudio-0.2.6-Setup.exe','CameraProfileStudio-0.2.6-Portable.zip')) {
+    foreach ($name in @('CameraProfileStudio-0.2.7-Setup.exe','CameraProfileStudio-0.2.7-Portable.zip')) {
         Copy-Item "$stage/output/$name" "$release/$name"
     }
-    Copy-Item "$stage/output/distribution/launcher.dist/CameraProfileStudio-0.2.6-Source.zip" "$release/CameraProfileStudio-0.2.6-Source.zip"
-    Get-FileHash "$release/CameraProfileStudio-0.2.6-Setup.exe","$release/CameraProfileStudio-0.2.6-Portable.zip","$release/CameraProfileStudio-0.2.6-Source.zip" |
+    Copy-Item "$stage/output/distribution/launcher.dist/CameraProfileStudio-0.2.7-Source.zip" "$release/CameraProfileStudio-0.2.7-Source.zip"
+    Get-FileHash "$release/CameraProfileStudio-0.2.7-Setup.exe","$release/CameraProfileStudio-0.2.7-Portable.zip","$release/CameraProfileStudio-0.2.7-Source.zip" |
         ForEach-Object { "$($_.Hash.ToLowerInvariant())  $(Split-Path $_.Path -Leaf)" } | Set-Content -Encoding ascii "$release/DELIVERY_SHA256SUMS.txt"
     Write-Output 'Fresh source build and hosted smoke complete; native desktop/Image Look Creator window acceptance remains UNVERIFIED.'
 } finally {

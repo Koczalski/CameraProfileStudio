@@ -1,5 +1,5 @@
 # Shared helpers for the build scripts (dot-sourced; not run on its own).
-# Persistent build caches are opt-in: packaging/windows-launcher/Build-0.2.6.ps1 sets CPS_BUILD_CACHE (unless -NoCache);
+# Persistent build caches are opt-in: packaging/windows-launcher/Build-0.2.7.ps1 sets CPS_BUILD_CACHE (unless -NoCache);
 # running a build script directly keeps the previous cache-free behavior. A cached file is only used after its SHA-256
 # (or its content-derived key) matches, so a cache can make a build faster but never changes what it produces.
 

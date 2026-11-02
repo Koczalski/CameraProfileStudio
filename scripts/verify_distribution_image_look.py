@@ -73,9 +73,9 @@ for case, entries in (('single', [(reference, None)]),
     assert np.max(np.abs(values - identity)) > 0.001, 'Unexpected identity image-look export'
     metadata = json.loads(output.with_suffix('.json').read_text())
     assert metadata['cube_sha256'] == hashlib.sha256(output.read_bytes()).hexdigest()
-    assert metadata['software']['camera-profile-studio'] == '0.2.6', metadata['software']
+    assert metadata['software']['camera-profile-studio'] == '0.2.7', metadata['software']
     provenance_software = json.loads(metadata['provenance']['software'])
-    assert provenance_software['camera-profile-studio'] == '0.2.6', provenance_software
+    assert provenance_software['camera-profile-studio'] == '0.2.7', provenance_software
     assert metadata['provenance']['engine'] == 'image-look-v2', metadata['provenance']['engine']
     roles = sorted(item['role'] for item in json.loads(metadata['provenance']['references']))
     assert roles == sorted(['base'] * base_count + ['reference'] * (len(references) - base_count)), roles

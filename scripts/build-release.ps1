@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $python = Join-Path $root '.venv/Scripts/python.exe'
-$release = Join-Path $root 'output/releases/0.2.6'
+$release = Join-Path $root 'output/releases/0.2.7'
 $stage = [IO.Path]::GetFullPath((Join-Path $release 'workspace'))
 if ($ValidateOnly) {
     & $python "$root/packaging/release_workspace.py" validate
@@ -18,7 +18,7 @@ $FreezeManifest = (Resolve-Path $FreezeManifest).Path
 & $python "$root/packaging/release_workspace.py" check $FreezeManifest
 if ($LASTEXITCODE -ne 0) { throw 'Approved source freeze differs from current inputs' }
 if (Test-Path $stage) { throw 'Release workspace already exists; do not silently reuse a binary or overwrite evidence' }
-if (Get-ChildItem "$release/CameraProfileStudio-0.2.6-*" -ErrorAction SilentlyContinue) {
+if (Get-ChildItem "$release/CameraProfileStudio-0.2.7-*" -ErrorAction SilentlyContinue) {
     throw 'Versioned release artifacts already exist; refusing to overwrite them'
 }
 & $python "$root/packaging/release_workspace.py" immutable
@@ -56,7 +56,7 @@ try {
 } finally { $ErrorActionPreference = $previousPreference }
 if ($metadataExit -ne 0) { throw 'Editable metadata probe failed' }
 $metadata | Set-Content "$release/editable-version-before.txt"
-if ($metadata -ne '0.2.6') {
+if ($metadata -ne '0.2.7') {
     try {
         $ErrorActionPreference = 'Continue'
         & $python -m pip install --no-deps --no-build-isolation --no-index -e $root *> "$release/editable-refresh.log"
@@ -66,7 +66,7 @@ if ($metadata -ne '0.2.6') {
 }
 try {
     $ErrorActionPreference = 'Continue'
-    & $python -c "from importlib.metadata import version; v=version('camera-profile-studio'); print(v); assert v == '0.2.6'" *> "$release/editable-version-after.txt"
+    & $python -c "from importlib.metadata import version; v=version('camera-profile-studio'); print(v); assert v == '0.2.7'" *> "$release/editable-version-after.txt"
     $metadataExit = $LASTEXITCODE
 } finally { $ErrorActionPreference = $previousPreference }
 if ($metadataExit -ne 0) { throw 'Editable metadata version mismatch' }
@@ -74,15 +74,15 @@ $oldGuard = $env:CPS_ISOLATED_BUILD
 $oldLocation = Get-Location
 try {
     $env:CPS_ISOLATED_BUILD = $stage
-    & "$stage/scripts/build-windows.ps1" -ReleaseVersion '0.2.6'
+    & "$stage/scripts/build-windows.ps1" -ReleaseVersion '0.2.7'
     & $python "$root/packaging/release_workspace.py" check-stage $FreezeManifest $stage
     if ($LASTEXITCODE -ne 0) { throw 'Staged inputs changed during compilation' }
     & $python "$root/packaging/release_workspace.py" check $FreezeManifest
     if ($LASTEXITCODE -ne 0) { throw 'Source changed during build; do not publish' }
-    foreach ($name in @('CameraProfileStudio-0.2.6-Setup.exe','CameraProfileStudio-0.2.6-Portable.zip')) {
+    foreach ($name in @('CameraProfileStudio-0.2.7-Setup.exe','CameraProfileStudio-0.2.7-Portable.zip')) {
         Copy-Item "$stage/output/$name" "$release/$name"
     }
-    Copy-Item "$stage/output/distribution/launcher.dist/CameraProfileStudio-0.2.6-Source.zip" "$release/CameraProfileStudio-0.2.6-Source.zip"
+    Copy-Item "$stage/output/distribution/launcher.dist/CameraProfileStudio-0.2.7-Source.zip" "$release/CameraProfileStudio-0.2.7-Source.zip"
 } finally {
     $env:CPS_ISOLATED_BUILD = $oldGuard
     Set-Location $oldLocation

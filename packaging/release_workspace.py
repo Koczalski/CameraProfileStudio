@@ -37,14 +37,14 @@ def fingerprint():
                      and not any(part in ('__pycache__', '.pytest_cache') or part.endswith('.egg-info') for part in p.parts)
                      and p.suffix.lower() not in ('.pyc', '.pyo'))
     files.extend(ROOT / name for name in ('pyproject.toml', 'requirements-lock.txt', 'docs/IMAGE_LOOK_API.md',
-                                         'docs/BUILD_0.2.6.md', '.github/workflows/windows-distribution.yml'))
+                                         'docs/BUILD_0.2.7.md', '.github/workflows/windows-distribution.yml'))
     return {p.relative_to(ROOT).as_posix(): digest(p) for p in sorted(set(files))}
 
 
 def validate():
     from collect_source import include
-    assert tomllib.loads((ROOT / 'pyproject.toml').read_text())['project']['version'] == '0.2.6'
-    assert "__version__ = '0.2.6'" in (ROOT / 'src/camera_profile_studio/__init__.py').read_text()
+    assert tomllib.loads((ROOT / 'pyproject.toml').read_text())['project']['version'] == '0.2.7'
+    assert "__version__ = '0.2.7'" in (ROOT / 'src/camera_profile_studio/__init__.py').read_text()
     installer = (ROOT / 'packaging/CameraProfileStudio.iss').read_text()
     assert 'AppId={{B15FF861-C98A-4F3F-B46D-143C62935FA3}' in installer
     assert 'AppVersion={#ReleaseVersion}' in installer

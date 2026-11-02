@@ -59,7 +59,7 @@ python -m camera_profile_studio.gui.app
 
 * LittleCMS (lcms2.dll) is required. Build it with `scripts\build-lcms.ps1` or point `CPS_LCMS2_DLL` to it.
 * The sample camera profiles used by the tests are not included ([input/ccd_profiles/README.md](input/ccd_profiles/README.md), Japanese).
-* Building the exe: `packaging\windows-launcher\Build-0.2.6.cmd`
+* Building the exe: `packaging\windows-launcher\Build-0.2.7.cmd`
 * Detailed documentation: [docs/README.en.md](docs/README.en.md)
 
 ## Contribution & Feedback

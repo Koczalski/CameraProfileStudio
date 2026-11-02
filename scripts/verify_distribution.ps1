@@ -1,4 +1,4 @@
-param([switch]$SkipInstaller, [switch]$SkipNativeGui, [ValidateSet('', '0.2.6')][string]$ReleaseVersion = '', [string]$ImageLookNavigationLabel = '', [switch]$HostedCi)
+param([switch]$SkipInstaller, [switch]$SkipNativeGui, [ValidateSet('', '0.2.7')][string]$ReleaseVersion = '', [string]$ImageLookNavigationLabel = '', [switch]$HostedCi)
 $ErrorActionPreference = 'Stop'
 if ($ReleaseVersion -and ($SkipInstaller -or $SkipNativeGui)) {
     throw 'Skip switches are not allowed for the release path'
@@ -22,9 +22,9 @@ if ($HostedCi) {
     if (Test-Path "$freshRoot/output/image-look-packaging/prep/immutable-baseline.json") {
         throw 'Hosted CI mode cannot bypass protected local release verification'
     }
-    if ($ReleaseVersion -ne '0.2.6' -or $env:CPS_ISOLATED_BUILD -ne $root -or
+    if ($ReleaseVersion -ne '0.2.7' -or $env:CPS_ISOLATED_BUILD -ne $root -or
         !(Test-Path "$root/.fresh-source-workspace.json") -or
-        ($root -notlike '*/output/releases/0.2.6/workspace' -and $root -notlike '*\output\releases\0.2.6\workspace')) {
+        ($root -notlike '*/output/releases/0.2.7/workspace' -and $root -notlike '*\output\releases\0.2.7\workspace')) {
         throw 'Hosted CI smoke requires a fresh-source staged workspace'
     }
 }
@@ -33,8 +33,8 @@ if ($ReleaseVersion) {
     if (!$ImageLookNavigationLabel -and !$HostedCi) { throw 'Frontend-provided Image Look Creator navigation label is required' }
     $stem += "-$ReleaseVersion"
 }
-if ((Get-Content "$root/pyproject.toml" -Raw) -match 'version = "0.2.6"' -and (!$ReleaseVersion -or $env:CPS_ISOLATED_BUILD -ne $root)) {
-    throw 'Use verify_distribution_release.ps1 for isolated 0.2.6 verification'
+if ((Get-Content "$root/pyproject.toml" -Raw) -match 'version = "0.2.7"' -and (!$ReleaseVersion -or $env:CPS_ISOLATED_BUILD -ne $root)) {
+    throw 'Use verify_distribution_release.ps1 for isolated 0.2.7 verification'
 }
 $out = Join-Path $root 'output/distribution'
 $artifactHashes = Get-Content "$out/artifact-hashes.json" -Raw | ConvertFrom-Json

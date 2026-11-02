@@ -94,7 +94,7 @@ _SEMVER = re.compile(
 class Version:
     """Semantic version with SemVer 2.0 precedence (build metadata ignored).
 
-    ``0.2.6`` > ``0.2.6-beta.2`` > ``0.2.6-beta`` > ``0.2.5``; a leading ``v`` is accepted.
+    ``0.2.7`` > ``0.2.7-beta.2`` > ``0.2.7-beta`` > ``0.2.6``; a leading ``v`` is accepted.
     """
 
     major: int

@@ -1,8 +1,23 @@
-# Building Camera Profile Studio 0.2.6 on Windows
+# Building Camera Profile Studio 0.2.7 on Windows
 
-## What 0.2.6 changes
+## What 0.2.7 changes
 
-0.2.6 is 0.2.5 plus the **LUT Check** workspace (`lut_health.py`, contract in
+0.2.7 is 0.2.6 plus the **LUT Compare** workspace (`lut_compare.py`, `gui/compare_render.py`,
+`gui/workspaces/compare.py`) and two build fixes:
+
+- One table of photos (rows) and LUTs (columns), with cells of 320, 480 or 720 px. LUTs come from files
+  or from the new "Add to comparison" button in every LUT output group, which keeps the LUT as it was.
+- Exports JPEG only, never overwriting: contact sheets `contact-NNN.jpg` (at most 8 columns including
+  Before and 6 rows per page) and split before/after images `<photo>__<LUT>.jpg` of the selected cells.
+  LUTs estimated to expect Log input are applied and carry a warning in all three places.
+- Source archive: the launcher's copy and `packaging/collect_source.py` leave out every `release-*` folder.
+  The 0.2.6 build carried `release-0.2.5`, which also inflated Setup and Portable.
+- `scripts/build-lcms.ps1` no longer needs the Visual Studio Installer folder on `PATH`; it calls
+  `vswhere.exe` by its fixed path and adds the folder to `PATH` for its own process only.
+
+## What 0.2.6 changed
+
+0.2.6 was 0.2.5 plus the **LUT Check** workspace (`lut_health.py`, contract in
 `docs/LUT_HEALTH_API.md`):
 
 - Opens any 3D LUT: `.cube` of any size 2–129, `.3dl`, Hald and strip PNG/TIFF, or the LUT built
@@ -18,7 +33,7 @@
 
 ## Updates
 
-0.2.6 also adds an in-app update check (`src/camera_profile_studio/updates.py`, no Qt; GUI in
+0.2.6 added an in-app update check (`src/camera_profile_studio/updates.py`, no Qt; GUI in
 `gui/updater.py` and `gui/widgets/update_dialog.py`; tests in `tests/test_updates.py`):
 
 - **The repository and its releases must be public.** For a private repository GitHub answers an
@@ -31,9 +46,9 @@
   `last_check`, `last_status`, `last_version` and `skipped_version`.
 - Request: one plain `GET https://api.github.com/repos/Koczalski/CameraProfileStudio/releases?per_page=20`
   with `User-Agent: CameraProfileStudio/<version>`; nothing else is sent. Drafts are ignored.
-- Versions are compared as SemVer (`0.2.6` > `0.2.6-beta` > `0.2.5`; tag prefix `v` optional), so
-  **every release needs a higher version than the one before** (an app that is 0.2.6 is not offered the tag
-  `v0.2.6-beta`). Tags look like `v0.2.7-beta`; pre-release tags are offered only when allowed.
+- Versions are compared as SemVer (`0.2.7` > `0.2.7-beta` > `0.2.6`; tag prefix `v` optional), so
+  **every release needs a higher version than the one before** (an app that is 0.2.7 is not offered the tag
+  `v0.2.7-beta`). Tags look like `v0.2.8-beta`; pre-release tags are offered only when allowed.
 - Assets are found by suffix: `*-Setup.exe` and `DELIVERY_SHA256SUMS.txt` (both are needed to install),
   `*-Portable.zip` and `*-Source.zip` (download page only).
 - Installed copy (the exe folder equals `InstallLocation` of the HKCU uninstall key
@@ -193,7 +208,7 @@ Use a new extraction after a failed run; it does not erase or reuse existing out
 Do not delete the original delivery output to make it appear fresh.
 
 The script collects filtered sources into
-`output/releases/0.2.6/workspace`, creates a stage-local tool area, rebuilds pinned
+`output/releases/0.2.7/workspace`, creates a stage-local tool area, rebuilds pinned
 LittleCMS, downloads all nine revision/SHA256-pinned legacy test profiles into
 stage-local input, retrieves license/provenance documents, and runs the **full pytest
 suite**, not a reduced replacement suite. A test failure blocks compilation. Test
@@ -206,7 +221,7 @@ as `source-tests-parallel.*` and `source-tests-gui.*`). A `.venv` without xdist 
 whole suite serially instead. `CPS_DISABLE_UPDATE_CHECK=1` is set for tests and smoke runs,
 so they never reach the network or show the update bar.
 
-It snapshots fresh build inputs, compiles new source with Nuitka and the 0.2.6 Inno
+It snapshots fresh build inputs, compiles new source with Nuitka and the 0.2.7 Inno
 Setup version, checks input stability, then runs hosted-style verification. That smoke
 includes native CLI convert, DCP look, SciPy match, single/multiple-reference and base-image image-look,
 offscreen GUI liveness, and exact-AppId-protected installer/uninstall (silent install into a sandbox
@@ -228,14 +243,14 @@ local release wrapper still runs all mandatory native desktop gates.
 
 Successful fresh outputs:
 
-- `output/releases/0.2.6/CameraProfileStudio-0.2.6-Setup.exe`
-- `output/releases/0.2.6/CameraProfileStudio-0.2.6-Portable.zip`
-- `output/releases/0.2.6/CameraProfileStudio-0.2.6-Source.zip`
-- `output/releases/0.2.6/DELIVERY_SHA256SUMS.txt`
-- `output/releases/0.2.6/source-tests.log` and `source-tests.xml`
-- `output/releases/0.2.6/fresh-build-inputs.json` and `phase-timings.json` (seconds per build phase;
+- `output/releases/0.2.7/CameraProfileStudio-0.2.7-Setup.exe`
+- `output/releases/0.2.7/CameraProfileStudio-0.2.7-Portable.zip`
+- `output/releases/0.2.7/CameraProfileStudio-0.2.7-Source.zip`
+- `output/releases/0.2.7/DELIVERY_SHA256SUMS.txt`
+- `output/releases/0.2.7/source-tests.log` and `source-tests.xml`
+- `output/releases/0.2.7/fresh-build-inputs.json` and `phase-timings.json` (seconds per build phase;
   `workspace/output/distribution/build-windows-phases.json` splits the packaging phase further)
-- `output/releases/0.2.6/workspace/output/distribution/` build/smoke proof
+- `output/releases/0.2.7/workspace/output/distribution/` build/smoke proof
 
 The fresh snapshot records build provenance; it is NOT the approved release freeze
 of the original delivery worktree. Rebuilding functionality does not promise
@@ -256,8 +271,8 @@ Measured on the 0.2.5 build log (16-core/32-thread Ryzen 9 7950X, 30 min): Nuitk
   `lcms2.dll` keyed by source SHA-256 + compiler/SDK versions + build flags (its functional and PE validation
   still run). The portable ZIP is built while ISCC runs; `audit_native.py` inspects binaries in parallel.
 - Caches live in `%LOCALAPPDATA%\CameraProfileStudio-build-cache` (`-CacheRoot` to move it, delete the folder to
-  reset it). They are only enabled by the launcher (`Build-0.2.6.cmd`, environment variable `CPS_BUILD_CACHE`);
-  running the scripts directly keeps the cache-free behaviour. `Build-0.2.6.cmd -NoCache` forces a clean build.
+  reset it). They are only enabled by the launcher (`Build-0.2.7.cmd`, environment variable `CPS_BUILD_CACHE`);
+  running the scripts directly keeps the cache-free behaviour. `Build-0.2.7.cmd -NoCache` forces a clean build.
   Every cached file is content-checked (SHA-256 or a content-derived key); the EXE is always relinked and
   the input-stability checks are unchanged.
 - Expected: about 30 min before, roughly 13 to 16 min after on the machine above (Inno `lzma2/fast`
@@ -266,7 +281,7 @@ Measured on the 0.2.5 build log (16-core/32-thread Ryzen 9 7950X, 30 min): Nuitk
   `scipy.integrate._lebedev`), which `--jobs` and the C cache do not touch. Real-time antivirus scanning of the
   build folder and the cache folder slows many small writes; excluding them in Windows Security is optional
   and is never done by the scripts.
-- `Build-0.2.6.cmd` prints `推定所要時間 約 N 分` at start and `経過 m:ss / 残り 約 N 分` at each step start. The
+- `Build-0.2.7.cmd` prints `推定所要時間 約 N 分` at start and `経過 m:ss / 残り 約 N 分` at each step start. The
   estimate is the per-step seconds of the most recent successful `build-logs\*\summary.json`; without one only
   the elapsed time is shown. There is no periodic refresh.
 
