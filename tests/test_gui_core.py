@@ -60,6 +60,11 @@ DYNAMIC = {
     "imagelook.sel.band.{}": ["shadows", "midtones", "highlights"],
     "error.code.{}": ["image_look_invalid", "image_look_baseline", "image_look_unusable", "image_look_conflict",
                       "image_look_source_changed", "image_look_source_io"],
+    # In-app updates (updater.py; codes of camera_profile_studio.updates)
+    "update.error.{}": ["offline", "not_found", "rate_limited", "http_error", "bad_response", "unexpected", "insecure_url",
+                        "size_mismatch", "disk", "cancelled", "checksum_missing", "checksum_mismatch", "launch"],
+    "update.mode.{}": ["portable", "source"],
+    "update.mode_name.{}": ["installed", "portable", "source"],
 }
 
 
@@ -78,7 +83,7 @@ def test_every_referenced_key_is_translated():
     prefixes = ("action.", "advanced.", "app.", "batch.", "cap.", "conv.", "dialog.", "error.", "filter.", "inspector.",
                 "job.", "jobs.", "log.", "look.", "lut.", "match.", "menu.", "meta.", "nav.", "panel.", "path.",
                 "picker.", "preview.", "profiles.", "progress.", "reason.", "settings.", "status.", "usage.", "viewer.",
-                "about.", "imagelook.")
+                "about.", "imagelook.", "update.")
     missing = set()
     for path in GUI_SRC.rglob("*.py"):
         if path.name == "strings.py":

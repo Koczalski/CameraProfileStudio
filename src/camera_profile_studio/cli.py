@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, replace
 import json
+import os
 from pathlib import Path
 import sys
+import tempfile
 import zipfile
 
 import numpy as np
@@ -128,6 +130,87 @@ def _samples(path: Path) -> SamplePairs:
         raise ValidationError(f'Invalid sample archive: {exc}', code='invalid_samples') from exc
 
 
+def _check_lut_outputs(args) -> tuple[str, set]:
+    """Shared output-path checks of the LUT-writing commands; returns (export format, claimed paths)."""
+    output_paths = {args.output.resolve(), args.output.with_suffix('.json').resolve()}
+    if args.output.is_dir():
+        raise ExportError('The output path is a directory; give a file name.', code='invalid_export_path')
+    if not args.overwrite and (args.output.exists() or args.output.with_suffix('.json').exists()):
+        raise ExportError('Output LUT or metadata already exists; use --overwrite explicitly.', code='output_exists')
+    export_format = args.format.replace('-', '_')
+    expected_suffix = '.cube' if export_format == 'cube' else '.png'
+    if args.output.suffix.lower() != expected_suffix:
+        raise ExportError(f'Output filename must end in {expected_suffix} for --format {args.format}.',
+                          code='invalid_export_path')
+    return export_format, output_paths
+
+
+def _lut_summary(loaded) -> dict:
+    return {'path': str(loaded.source_path), 'size': loaded.size, 'title': loaded.title,
+            'source_format': loaded.source_format, 'warnings': list(loaded.warnings)}
+
+
+def _write_json_report(path: Path, payload: dict, *, overwrite: bool) -> None:
+    if path.is_dir():
+        raise ExportError('The report path is a directory; give a file name.', code='invalid_export_path')
+    if path.exists() and not overwrite:
+        raise ExportError('Report file already exists; use --overwrite explicitly.', code='output_exists')
+    text = json.dumps(_jsonable(payload), ensure_ascii=True, allow_nan=False, sort_keys=True, indent=2) + '\n'
+    temporary = None
+    try:
+        handle, name = tempfile.mkstemp(prefix='.' + path.stem + '-', suffix='.json.tmp', dir=path.parent)
+        temporary = Path(name)
+        with os.fdopen(handle, 'w', encoding='utf-8', newline='\n') as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        temporary = None
+    except OSError as exc:
+        raise ExportError(f'Cannot write report: {exc}', code=_module('lut')._export_code(exc, path),
+                          details=(('path', str(path)),)) from exc
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def _run_diagnose(args) -> int:
+    health = _module('lut_health')
+    loaded = health.load_lut_file(args.lut)
+    report = health.diagnose_lut(loaded)
+    header = {'lut': _lut_summary(loaded)}
+    if args.json is not None:
+        if args.json.resolve() == args.lut.resolve():
+            raise ValidationError('The report must not overwrite the LUT file.', code='source_output_collision')
+        _write_json_report(args.json, {**header, **health.report_to_dict(report, include_arrays=True)},
+                           overwrite=args.overwrite)
+        header['report_file'] = str(args.json)
+    _print_json({**header, **health.report_to_dict(report)})
+    return 0
+
+
+def _run_repair(args) -> int:
+    health = _module('lut_health')
+    lutmod = _module('lut')
+    export_format, output_paths = _check_lut_outputs(args)
+    if args.lut.resolve() in output_paths:
+        raise ValidationError('Output artifacts must not overwrite the input LUT.', code='source_output_collision')
+    settings = health.RepairSettings(smooth=args.smooth, fix_jumps=args.fix_jumps, round_clip=args.round_clip,
+                                     lock_gray=args.lock_gray, iterations=args.iterations)
+    loaded = health.load_lut_file(args.lut)
+    result = health.repair_lut(loaded, settings)
+    record = dict(result.after.provenance)['repair']
+    lut = health.to_lut3d(result.lut, args.size)
+    lut = replace(lut, provenance=lut.provenance + (('repair', record),))
+    exported = health.diagnose_lut(lut)
+    extra = {'health': health.health_summary(exported), 'repair': json.loads(record)}
+    export = lutmod.export_lut(lut, args.output, format=export_format, overwrite=args.overwrite, extra_metadata=extra)
+    _print_json({'schema_version': 1, 'export': export, 'lut': _lut_summary(loaded), 'repair': json.loads(record),
+                 'before': health.health_summary(result.before), 'after': health.health_summary(result.after),
+                 'exported': health.health_summary(exported)})
+    return 0
+
+
 class _Parser(argparse.ArgumentParser):
     def error(self, message):
         raise ValidationError(message, code='cli_usage')
@@ -154,6 +237,25 @@ def _parser():
         command.add_argument('--overwrite', action='store_true')
         command.add_argument('--format', choices=('cube', 'hald-png', 'strip-png', 'strip-png-flipped'), default='cube',
                              help='LUT file format: .cube (default), Hald CLUT PNG (16-bit) or strip PNG (8-bit).')
+    diagnose = commands.add_parser('diagnose', help='Check a 3D LUT file (.cube, .3dl, Hald/strip PNG or TIFF) for '
+                                   'tone reversals, tints, clipping, jumps, hue folds, banding risk and flat areas.')
+    diagnose.add_argument('--lut', type=Path, required=True)
+    diagnose.add_argument('--json', type=Path, metavar='OUT',
+                          help='Also write the full report (node locations, grey axis, hue samples) to OUT.')
+    diagnose.add_argument('--overwrite', action='store_true', help='Replace an existing --json file.')
+    repair = commands.add_parser('repair', help='Smooth / repair a LUT on request and export the result (never automatic).')
+    repair.add_argument('--lut', type=Path, required=True)
+    repair.add_argument('--output', type=Path, required=True)
+    repair.add_argument('--smooth', type=float, default=0.0, help='Global smoothing strength 0..1 (default 0).')
+    repair.add_argument('--fix-jumps', action='store_true', help='Smooth locally around jumps and hue folds.')
+    repair.add_argument('--round-clip', action='store_true', help='Round the border of clipped plateaus.')
+    repair.add_argument('--lock-gray', action='store_true', help='Make grey inputs neutral at their own lightness.')
+    repair.add_argument('--iterations', type=int, default=8, help='Smoothing iterations 1..64 (default 8).')
+    repair.add_argument('--size', type=int, choices=(17, 33, 65), default=None,
+                        help='Export grid size (default: the nearest of 17/33/65).')
+    repair.add_argument('--overwrite', action='store_true')
+    repair.add_argument('--format', choices=('cube', 'hald-png', 'strip-png', 'strip-png-flipped'), default='cube',
+                        help='LUT file format: .cube (default), Hald CLUT PNG (16-bit) or strip PNG (8-bit).')
     commands.add_parser('gui', help='Launch the optional Qt desktop application.')
     return parser
 
@@ -175,19 +277,15 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == 'gui':
             return int(_module('gui.app').main())
+        if args.command == 'diagnose':
+            return _run_diagnose(args)
+        if args.command == 'repair':
+            return _run_repair(args)
         input_paths = [args.request] if args.command in ('convert', 'image-look') else [args.samples, args.settings]
         output_paths = {args.output.resolve(), args.output.with_suffix('.json').resolve()}
         if any(path is not None and path.resolve() in output_paths for path in input_paths):
             raise ValidationError('Output artifacts must not overwrite input settings or samples.', code='source_output_collision')
-        if args.output.is_dir():
-            raise ExportError('The output path is a directory; give a file name.', code='invalid_export_path')
-        if not args.overwrite and (args.output.exists() or args.output.with_suffix('.json').exists()):
-            raise ExportError('Output LUT or metadata already exists; use --overwrite explicitly.', code='output_exists')
-        export_format = args.format.replace('-', '_')
-        expected_suffix = '.cube' if export_format == 'cube' else '.png'
-        if args.output.suffix.lower() != expected_suffix:
-            raise ExportError(f'Output filename must end in {expected_suffix} for --format {args.format}.',
-                              code='invalid_export_path')
+        export_format, _ = _check_lut_outputs(args)
         report = None
         image_look_report = None
         if args.command == 'convert':

@@ -100,6 +100,7 @@ class JobRecord:
     error: ErrorInfo | None = None
     side_effects: bool = False
     filtered: bool = True  # results dropped when a newer superseding job exists
+    background: bool = False  # housekeeping (e.g. update check): no "busy" status, never blocks closing the window
     started: float = field(default_factory=time.monotonic)
     ended: float | None = None
 
@@ -233,13 +234,16 @@ class JobManager(QObject):
         supersede: bool = True,
         side_effects: bool = False,
         title_kwargs: dict[str, Any] | None = None,
+        background: bool = False,
     ) -> int:
         """Run ``fn(token, progress)`` on the pool.
 
         With ``supersede`` (default) any running job on the same channel is
         cancelled and its eventual result ignored.  ``side_effects`` marks
         jobs that publish files: they are never superseded and always report
-        their actual terminal outcome (see :class:`_Runnable`).
+        their actual terminal outcome (see :class:`_Runnable`).  ``background``
+        jobs (update check) neither raise the "busy" status nor count as
+        running tasks when the window is closed; they are still cancelled.
         """
         if side_effects:
             supersede = False
@@ -260,7 +264,7 @@ class JobManager(QObject):
             generation = self._generations.get(channel, 0)
         job_id = next(self._ids)
         rec = JobRecord(job_id, channel, generation, title_key, title_kwargs or {}, CancelToken(), side_effects=side_effects,
-                        filtered=supersede)
+                        filtered=supersede, background=background)
         self.records[job_id] = rec
         self._callbacks[job_id] = _Callbacks(on_result, on_error, on_cancel, on_progress, on_done)
         signals = _Signals()
@@ -272,7 +276,8 @@ class JobManager(QObject):
         self._signals[job_id] = signals
         self.model.add(job_id)
         self.pool.start(_Runnable(rec, fn, signals, self.error_mapper, side_effects))
-        self.busy_changed.emit(True)
+        if not background:
+            self.busy_changed.emit(True)
         return job_id
 
     def invalidate(self, channel: str) -> None:
@@ -387,7 +392,7 @@ class JobManager(QObject):
         if sig is not None:
             sig.deleteLater()
         self.job_finished.emit(job_id, final.value)
-        if not self.active():
+        if not rec.background and not any(not r.background for r in self.active()):
             self.busy_changed.emit(False)
 
     def _set_state(self, rec: JobRecord, state: JobState) -> None:

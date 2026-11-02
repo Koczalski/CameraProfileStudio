@@ -37,6 +37,9 @@
 ### 8. 日本語・英語、ライト・ダーク
 * **表示**：日本語と英語、ライトテーマとダークテーマを切り替えられます。
 
+### 9. 更新
+* **更新の確認**：ヘルプ > 更新を確認…（起動時にも 1 日に 1 回まで自動で確認します。設定で無効にできます）で、公開されている GitHub Releases を調べます。インストール版は新しいバージョンのダウンロード・SHA-256 の確認・インストールまで行い、ポータブル版はダウンロードページを開きます。取得するのは公開されているリリース一覧だけで、個人情報や設定は送信しません。
+
 ## 技術スタック
 
 * **言語**：Python 3.12
@@ -56,7 +59,7 @@ python -m camera_profile_studio.gui.app
 
 * LittleCMS（lcms2.dll）が必要です。`scripts\build-lcms.ps1` でビルドするか、環境変数 `CPS_LCMS2_DLL` で指定します。
 * テスト用のカメラプロファイルは同梱していません（[input/ccd_profiles/README.md](input/ccd_profiles/README.md)）。
-* exe のビルド：`packaging\windows-launcher\Build-0.2.5.cmd`
+* exe のビルド：`packaging\windows-launcher\Build-0.2.6.cmd`
 * 詳しい資料：[docs/DETAILS.ja.md](docs/DETAILS.ja.md)
 
 ## コントリビューション・フィードバック

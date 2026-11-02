@@ -146,8 +146,8 @@ def test_seventh_workspace_is_appended_and_existing_shortcuts_kept(win):
     from camera_profile_studio.gui.main_window import WORKSPACES
 
     keys = [c.key for c in WORKSPACES]
-    assert keys == ["inspector", "converter", "look", "match", "batch", "settings", "imagelook"]
-    assert [a.shortcut().toString() for a in win.ws_actions] == [f"Ctrl+{i}" for i in range(1, 8)]
+    assert keys == ["inspector", "converter", "look", "match", "batch", "settings", "imagelook", "diagnose"]
+    assert [a.shortcut().toString() for a in win.ws_actions] == [f"Ctrl+{i}" for i in range(1, 9)]
     assert win.nav.nav_model.item(6).data(Qt.ItemDataRole.UserRole) == "imagelook"
     assert not win.nav.nav_model.item(6).icon().isNull()
     win.ws_actions[6].trigger()
@@ -156,7 +156,7 @@ def test_seventh_workspace_is_appended_and_existing_shortcuts_kept(win):
     assert win.current_workspace().key == "settings"
     # distinct from the DCP extractor and paired matching
     assert type(ws_of(win)).__mro__[1].__name__ == "LutWorkspace"
-    assert ws_of(win).icon_name not in {cls.icon_name for cls in WORKSPACES[:-1]}
+    assert ws_of(win).icon_name not in {cls.icon_name for cls in WORKSPACES if cls.key != "imagelook"}
 
 
 # ---------------------------------------------------------------- ROI widget

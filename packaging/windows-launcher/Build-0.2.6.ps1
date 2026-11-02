@@ -1,23 +1,29 @@
 ﻿#requires -Version 5.1
 <#
 .SYNOPSIS
-    Camera Profile Studio 0.2.5 を Windows でビルドします（Setup.exe / Portable.zip / Source.zip）。
+    Camera Profile Studio 0.2.6 を Windows でビルドします（Setup.exe / Portable.zip / Source.zip）。
 
 .DESCRIPTION
-    同梱ソースの公式手順（docs/BUILD_0.2.5.md）を、新しい短いビルドフォルダーで順に実行します。
+    同梱ソースの公式手順（docs/BUILD_0.2.6.md）を、新しい短いビルドフォルダーで順に実行します。
       1. 事前チェック（PC の設定は変更しません）
       2. ソースを新しいビルドフォルダーへ複製（元のソースフォルダーは変更しません）
       3. scripts/build-fresh-source.ps1 -ValidateOnly
       4. .venv の作成と、固定版の依存パッケージのインストール
       5. scripts/build-fresh-source.ps1 -BuildApproved
          （全テスト → LittleCMS → Nuitka → Inno Setup → 配布物の検査）
-      6. 成果物を release-0.2.5 フォルダーへコピーし、SHA-256 を照合
+      6. 成果物を release-0.2.6 フォルダーへコピーし、SHA-256 を照合
 
 .PARAMETER Python
     使う python.exe（3.12 x64）。省略時は py ランチャーと標準のインストール先から探します。
 .PARAMETER BuildRoot
     ビルドフォルダーを作る親フォルダー。省略時はこのスクリプトと同じ場所の "b"。
     NTFS の短いパス（全体で 64 文字以内が目安）にしてください。
+.PARAMETER CacheRoot
+    ビルドキャッシュ（pip・uv・Nuitka の C オブジェクト・LittleCMS・ダウンロード済みの固定版ツール）の場所。
+    省略時は %LOCALAPPDATA%\CameraProfileStudio-build-cache。2 回目以降のビルドが速くなります。
+    キャッシュはハッシュや内容で照合してから使うため、成果物は変わりません。不要ならフォルダーごと削除してかまいません。
+.PARAMETER NoCache
+    キャッシュを一切使わず、すべて新規に取得・コンパイルします（クリーンビルド）。
 .PARAMETER CheckOnly
     事前チェックだけを行います。
 .PARAMETER Yes
@@ -27,6 +33,8 @@
 param(
     [string]$Python = '',
     [string]$BuildRoot = '',
+    [string]$CacheRoot = '',
+    [switch]$NoCache,
     [switch]$CheckOnly,
     [switch]$Yes
 )
@@ -35,7 +43,7 @@ $ErrorActionPreference = 'Stop'
 # Windows PowerShell 5.1 の進捗表示は Invoke-WebRequest を大幅に遅くするため、子プロセスでも止める。
 $ProgressPreference = 'SilentlyContinue'
 
-$Version = '0.2.5'
+$Version = '0.2.6'
 $AppIdKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{B15FF861-C98A-4F3F-B46D-143C62935FA3}_is1'
 $Kit = $PSScriptRoot
 $Source = Join-Path $Kit "CameraProfileStudio-$Version-Source"
@@ -51,6 +59,12 @@ if (-not (Test-Path -LiteralPath (Join-Path $Source 'pyproject.toml'))) {
 }
 if (-not $BuildRoot) { $BuildRoot = Join-Path $Kit 'b' }
 $BuildRoot = [IO.Path]::GetFullPath($BuildRoot)
+if (-not $CacheRoot) {
+    $cacheBase = $env:LOCALAPPDATA
+    if (-not $cacheBase) { $cacheBase = $Kit }
+    $CacheRoot = Join-Path $cacheBase 'CameraProfileStudio-build-cache'
+}
+$CacheRoot = [IO.Path]::GetFullPath($CacheRoot)
 $Stamp = Get-Date -Format 'MMdd-HHmm'
 if (Test-Path -LiteralPath (Join-Path $BuildRoot $Stamp)) { $Stamp = Get-Date -Format 'MMdd-HHmmss' }
 $Work = Join-Path $BuildRoot $Stamp
@@ -68,6 +82,7 @@ $Summary = [ordered]@{
     powershell = $PSVersionTable.PSVersion.ToString(); powershell_exe = $PsExe
     python = $null; checks = @(); steps = @(); failed_step = $null; error = $null
     release = $null; artifacts = @(); exe = $null
+    cache = $(if ($NoCache) { 'disabled (-NoCache)' } else { $CacheRoot }); installer_smoke = $null
 }
 
 function Save-Summary {
@@ -86,6 +101,65 @@ function Write-Section([string]$Text) {
 function Format-Duration([int]$Seconds) {
     if ($Seconds -lt 60) { return "$Seconds 秒" }
     return ('{0} 分 {1:00} 秒' -f [math]::Floor($Seconds / 60), ($Seconds % 60))
+}
+
+# ---------------------------------------------------------------- 推定所要時間
+# 直近に成功したビルド（build-logs\*\summary.json）の手順ごとの所要時間から見積もる。
+# 成功したビルドがなければ、経過時間だけを表示する。
+
+$script:BuildStart = Get-Date
+$script:Previous = @{}
+$script:StepKey = $null
+$script:StepStart = $script:BuildStart
+
+function Get-PreviousDurations {
+    <# 直近に成功したビルドの手順番号（2〜6）ごとの所要秒。なければ空。 #>
+    $found = @{}
+    $dir = Join-Path $Kit 'build-logs'
+    if (-not (Test-Path -LiteralPath $dir)) { return $found }
+    $files = @(Get-ChildItem -LiteralPath $dir -Directory -ErrorAction SilentlyContinue |
+        ForEach-Object { Join-Path $_.FullName 'summary.json' } |
+        Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { Get-Item -LiteralPath $_ } | Sort-Object LastWriteTime -Descending)
+    foreach ($file in $files) {
+        try { $previous = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json } catch { continue }
+        if ($previous.status -ne 'succeeded') { continue }
+        foreach ($step in @($previous.steps)) {
+            if ($step.status -eq 'ok' -and $null -ne $step.seconds -and $step.name -match '^(\d+)/\d+') { $found[[int]$matches[1]] = [int]$step.seconds }
+        }
+        if ($found.Count) { break }
+    }
+    return $found
+}
+
+function Format-Clock([double]$Seconds) {
+    $total = [int][math]::Max(0, $Seconds)
+    return ('{0}:{1:00}' -f [math]::Floor($total / 60), ($total % 60))
+}
+
+function Get-RemainingSeconds {
+    <# 現在の手順の残り（前回の所要時間 − 経過。超えたら 0）と、以降の手順の前回の所要時間の合計。見積もれなければ $null。 #>
+    if ($script:Previous.Count -eq 0 -or $null -eq $script:StepKey) { return $null }
+    $sum = 0.0
+    foreach ($key in $script:Previous.Keys) { if ($key -gt $script:StepKey) { $sum += $script:Previous[$key] } }
+    if ($script:Previous.ContainsKey($script:StepKey)) {
+        $sum += [math]::Max(0, $script:Previous[$script:StepKey] - ((Get-Date) - $script:StepStart).TotalSeconds)
+    }
+    return $sum
+}
+
+function Format-Eta {
+    $text = '経過 ' + (Format-Clock ((Get-Date) - $script:BuildStart).TotalSeconds)
+    $remaining = Get-RemainingSeconds
+    if ($null -ne $remaining) { $text += ' / 残り 約 {0} 分' -f [int][math]::Max(1, [math]::Ceiling($remaining / 60)) }
+    return $text
+}
+
+function Show-EtaStep([string]$Name) {
+    <# 手順の開始時に、経過時間と残り時間の目安を 1 行出す（途中の定期更新はしない）。 #>
+    $script:StepKey = $null
+    if ($Name -match '^(\d+)/\d+') { $script:StepKey = [int]$matches[1] }
+    $script:StepStart = Get-Date
+    Write-Host ('   ' + (Format-Eta))
 }
 
 # ---------------------------------------------------------------- 実行の補助
@@ -119,6 +193,8 @@ $PhaseNames = @{
     'source-tests.log' = '全テスト'; 'bootstrap.log' = 'ツールと上流ソースの準備'; 'licenses.log' = 'ライセンスの収集'
     'nuitka-build.log' = 'EXE の生成（Nuitka。いちばん時間がかかります）'; 'installer-build.log' = 'インストーラーの生成（Inno Setup）'
     'lcms-rebuild.log' = 'LittleCMS のビルド'
+    'source-tests-parallel.log' = '全テスト（GUI 以外・並列）'; 'source-tests-gui.log' = '全テスト（GUI）'
+    'portable-zip.log' = 'ポータブル版 ZIP の生成（インストーラーの生成と並行）'
 }
 
 function Get-LatestLog {
@@ -201,6 +277,7 @@ function Invoke-ProjectScript([string]$Script, [string]$Switch, [string]$LogName
 function Invoke-Step([string]$Name, [scriptblock]$Action) {
     $started = Get-Date
     Write-Section $Name
+    Show-EtaStep $Name
     $entry = [ordered]@{ name = $Name; status = 'running'; started = $started.ToString('s'); seconds = $null }
     $Summary.steps += $entry
     Save-Summary
@@ -407,15 +484,39 @@ function Invoke-Preflight {
     elseif ($len -le 80) { Add-Check 'パスの長さ' 'WARN' "$Work（$len 文字。64 文字以内を推奨）" '-BuildRoot C:\cpsb のように短い場所を指定できます' }
     else { Add-Check 'パスの長さ' 'FAIL' "$Work（$len 文字。Windows の 260 文字制限に掛かるおそれ）" '-BuildRoot C:\cpsb のように短い場所を指定してください' }
 
-    # インストール済みの Camera Profile Studio（配布物の検査がインストーラーを試すため）
+    # インストール済みの Camera Profile Studio（インストール版は変更しない。検査のインストーラー試験だけを省略する）
     try { $registered = @(Get-CpsRegistrations) } catch { $registered = $null }
     if ($null -eq $registered) {
         Add-Check 'インストール版' 'FAIL' 'レジストリを確認できません' 'Windows の通常のユーザーで実行してください'
     } elseif ($registered.Count) {
         $r = $registered[0]
-        Add-Check 'インストール版' 'FAIL' ("Camera Profile Studio {0} がインストール済みです（{1}）。検査のインストーラー試験が安全のため止まります" -f $r.version, $r.location) '設定 > アプリ からアンインストールしてから実行してください（ポータブル版のフォルダーには影響しません）'
+        Add-Check 'インストール版' 'WARN' ("Camera Profile Studio {0} がインストール済みです（{1}）。インストール版には一切触れません" -f $r.version, $r.location) '検査のインストーラー試験（インストール／アンインストール）だけを省略し、結果に警告として記録します。ビルドはそのまま進められます'
     } else {
         Add-Check 'インストール版' 'OK' 'インストール済みの Camera Profile Studio はありません'
+    }
+
+    # ビルドキャッシュと uv
+    if ($NoCache) {
+        Add-Check 'キャッシュ' 'OK' '使いません（-NoCache）。すべて新規に取得・コンパイルします'
+    } else {
+        try {
+            $cacheDrive = New-Object System.IO.DriveInfo([IO.Path]::GetPathRoot($CacheRoot))
+            $cacheFree = [math]::Round($cacheDrive.AvailableFreeSpace / 1GB, 1)
+            if ($cacheFree -lt 5) {
+                Add-Check 'キャッシュ' 'WARN' "$CacheRoot（空き $cacheFree GB。5 GB 以上を推奨）" '-CacheRoot で空きのあるドライブを指定できます（-NoCache で使わないことも可能）'
+            } else {
+                Add-Check 'キャッシュ' 'OK' "$CacheRoot（空き $cacheFree GB。2 回目以降のビルドが速くなります）"
+            }
+        } catch {
+            Add-Check 'キャッシュ' 'WARN' "ドライブを確認できません: $CacheRoot" '-CacheRoot でローカルドライブを指定するか、-NoCache を付けてください'
+        }
+    }
+    $uvCommand = Get-Command uv.exe -ErrorAction SilentlyContinue
+    if ($uvCommand) {
+        $script:UvExe = $uvCommand.Source
+        Add-Check 'uv' 'OK' "$($script:UvExe)（依存パッケージのインストールに使います。失敗したら pip に戻ります）"
+    } else {
+        Add-Check 'uv' 'WARN' 'uv が見つかりません。pip でインストールします（結果は同じで、少し遅くなります）' 'winget install -e --id astral-sh.uv'
     }
 
     # ネットワーク
@@ -473,9 +574,19 @@ function Invoke-Main {
     Write-Host "  ソース        : $Source"
     Write-Host "  ビルドフォルダー: $Work"
     Write-Host "  ログ          : $LogDir"
+    $script:Previous = Get-PreviousDurations
+    if ($script:Previous.Count) {
+        $expected = 0
+        foreach ($seconds in $script:Previous.Values) { $expected += $seconds }
+        Write-Host ('  推定所要時間 約 {0} 分（直近に成功したビルドの手順ごとの所要時間から計算）' -f [int][math]::Max(1, [math]::Ceiling($expected / 60)))
+    } else {
+        Write-Host '  推定所要時間 : 直近に成功したビルドがないため見積もれません（経過時間だけを表示します）'
+    }
 
     Write-Section '1/6 事前チェック（PC の設定は変更しません）'
+    Show-EtaStep '1/6'
     $script:PyExe = $null
+    $script:UvExe = $null
     Invoke-Preflight
     Show-Checks
     $Summary.checks = @($Checks | ForEach-Object { [ordered]@{ name = $_.name; status = $_.status; detail = $_.detail } })
@@ -500,10 +611,15 @@ function Invoke-Main {
     Write-Host ''
     Write-Host 'これから次を行います:' -ForegroundColor White
     Write-Host '  ・固定版の部品をダウンロード（Python パッケージ・Inno Setup・LittleCMS・Qt ソース・テスト用プロファイル。合計 1～2 GB 程度）'
-    Write-Host '  ・全テスト → EXE（Nuitka）→ インストーラー（Inno Setup）→ 配布物の検査'
+    if ($NoCache) {
+        Write-Host '    キャッシュは使いません（-NoCache）'
+    } else {
+        Write-Host "    2 回目以降は $CacheRoot のキャッシュを使います（照合してから使うので成果物は変わりません。-NoCache で無効）"
+    }
+    Write-Host '  ・全テスト（GUI 以外は並列）→ EXE（Nuitka。論理プロセッサー数で並列コンパイル）→ インストーラー（Inno Setup）→ 配布物の検査'
     Write-Host '  ・検査のため、作成したインストーラーをビルドフォルダー内へ一時的にサイレントインストールし、すぐアンインストールします'
-    Write-Host '    （スタートメニューやデスクトップには登録されません）'
-    Write-Host '  ・所要時間の目安: 30～90 分（PC とネットワークによる）。途中で止めるときは Ctrl+C'
+    Write-Host '    （スタートメニューやデスクトップには登録されません。インストール済みのアプリがある場合は、それに触れずにこの試験だけを省略します）'
+    Write-Host '  ・所要時間の目安: 初回 15～40 分、キャッシュが効く 2 回目以降はさらに短縮（PC とネットワークによる）。途中で止めるときは Ctrl+C'
     Write-Host '  ・元のソースフォルダーと、既存の launcher.dist・0.2.0 の配布物は変更しません'
     if (-not $Yes) {
         $answer = Read-Host '開始しますか？ [Y] はい / [N] いいえ（既定: Y）'
@@ -517,6 +633,16 @@ function Invoke-Main {
 
     # 子プロセスに不要な Python 環境変数を持ち込まない。
     foreach ($name in @('PYTHONHOME', 'PYTHONPATH', 'VIRTUAL_ENV')) { Remove-Item "Env:$name" -ErrorAction SilentlyContinue }
+    # テスト・検査で更新確認がネットワークに出たり、更新バーが出たりしないようにする（子プロセスへ引き継ぐ）。
+    $env:CPS_DISABLE_UPDATE_CHECK = '1'
+    if ($NoCache) {
+        foreach ($name in @('CPS_BUILD_CACHE', 'PIP_CACHE_DIR', 'UV_CACHE_DIR', 'NUITKA_CACHE_DIR')) { Remove-Item "Env:$name" -ErrorAction SilentlyContinue }
+    } else {
+        New-Item -ItemType Directory -Force -Path $CacheRoot | Out-Null
+        $env:CPS_BUILD_CACHE = $CacheRoot
+        $env:PIP_CACHE_DIR = Join-Path $CacheRoot 'pip'
+        $env:UV_CACHE_DIR = Join-Path $CacheRoot 'uv'
+    }
 
     Invoke-Step '2/6 ソースを新しいビルドフォルダーへ複製' {
         New-Item -ItemType Directory -Force -Path $BuildRoot | Out-Null
@@ -541,10 +667,27 @@ function Invoke-Main {
     $VenvPy = Join-Path $Work '.venv\Scripts\python.exe'
     Invoke-Step '4/6 .venv を作成し、固定版の依存パッケージをインストール' {
         Invoke-Logged $script:PyExe @('-m', 'venv', (Join-Path $Work '.venv')) 'venv.log'
-        Invoke-Logged $VenvPy @('-m', 'pip', 'install', '--disable-pip-version-check', '--no-input',
-            '-r', (Join-Path $Work 'requirements-lock.txt')) 'pip-lock.log'
-        Invoke-Logged $VenvPy @('-m', 'pip', 'install', '--disable-pip-version-check', '--no-input',
-            '--no-deps', '--no-build-isolation', '-e', $Work) 'pip-editable.log'
+        $lock = Join-Path $Work 'requirements-lock.txt'
+        $installed = $false
+        if ($script:UvExe) {
+            # uv は pip と同じ固定版（requirements-lock.txt）を、キャッシュ済みの wheel から短時間で入れる。
+            # 失敗したら同じ内容を pip で入れ直す。--link-mode copy で .venv をキャッシュから独立させる。
+            $uvBase = @('pip', 'install', '--python', $VenvPy, '--link-mode', 'copy')
+            if ($NoCache) { $uvBase += '--no-cache' }
+            try {
+                Invoke-Logged $script:UvExe ($uvBase + @('-r', $lock)) 'pip-lock.log'
+                Invoke-Logged $script:UvExe ($uvBase + @('--no-deps', '--no-build-isolation', '-e', $Work)) 'pip-editable.log'
+                $installed = $true
+            } catch {
+                Write-Host "   uv でのインストールに失敗したため pip で入れ直します: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        }
+        if (-not $installed) {
+            $pipBase = @('-m', 'pip', 'install', '--disable-pip-version-check', '--no-input')
+            if ($NoCache) { $pipBase += '--no-cache-dir' }
+            Invoke-Logged $VenvPy ($pipBase + @('-r', $lock)) 'pip-lock.log'
+            Invoke-Logged $VenvPy ($pipBase + @('--no-deps', '--no-build-isolation', '-e', $Work)) 'pip-editable.log'
+        }
         Invoke-Logged $VenvPy @('-c', 'import sys,nuitka,PySide6,numpy,scipy,camera_profile_studio;print(sys.version.split()[0],camera_profile_studio.__version__)') 'venv-check.log'
         $check = Get-Content -LiteralPath (Join-Path $LogDir 'venv-check.log') -Raw
         if ($check -notmatch [regex]::Escape($Version)) { throw ".venv のアプリのバージョンが $Version ではありません: $check" }
@@ -581,7 +724,12 @@ function Invoke-Main {
             if (Test-Path -LiteralPath $path) { Copy-Item -LiteralPath $path -Destination $script:Release }
         }
         $smoke = Join-Path $rel 'workspace\output\distribution\smoke-results.json'
-        if (Test-Path -LiteralPath $smoke) { Copy-Item -LiteralPath $smoke -Destination $script:Release }
+        if (Test-Path -LiteralPath $smoke) {
+            Copy-Item -LiteralPath $smoke -Destination $script:Release
+            if ((Get-Content -LiteralPath $smoke -Raw) -match '"installer_smoke":\s*"SKIPPED') {
+                $Summary.installer_smoke = 'skipped (an installed copy was present and left untouched)'
+            }
+        }
 
         Write-Host '   ポータブル版を展開しています…'
         $portable = Join-Path $script:Release 'portable'
@@ -602,6 +750,9 @@ function Invoke-Main {
     Write-Host "  起動する EXE     : $($Summary.exe)"
     Write-Host "  インストーラー   : $(Join-Path $script:Release "CameraProfileStudio-$Version-Setup.exe")"
     Write-Host "  成果物フォルダー : $($script:Release)"
+    if ($Summary.installer_smoke) {
+        Write-Host '  ※ インストール済みのアプリがあったため、インストーラーの試験（インストール／アンインストール）は省略しました（アプリには触れていません）。' -ForegroundColor Yellow
+    }
     Write-Host '  ※ コード署名はしていません。他の PC へ配ると SmartScreen の確認が出ることがあります。'
     Write-Host "  ※ ビルドフォルダー（$Work）は確認後に削除してかまいません。"
     try { Invoke-Item -LiteralPath $script:Release } catch { }

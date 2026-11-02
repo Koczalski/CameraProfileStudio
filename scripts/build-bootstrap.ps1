@@ -1,4 +1,5 @@
 $ErrorActionPreference = 'Stop'
+. "$PSScriptRoot/build-common.ps1"
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 $tools = Join-Path $root '.tools/packaging'
@@ -9,7 +10,7 @@ $downloads = @(
 )
 foreach ($item in $downloads) {
     $path = Join-Path $tools $item[1]
-    if (!(Test-Path $path)) { Invoke-WebRequest $item[0] -OutFile $path }
+    if (!(Test-Path $path)) { Get-CpsFile -Url $item[0] -Destination $path -Sha256 $item[2] }
     if ((Get-FileHash $path -Algorithm SHA256).Hash -ne $item[2]) { throw "Hash mismatch: $path" }
 }
 if (!(Test-Path "$tools/innoextract/innoextract.exe")) {
@@ -26,7 +27,7 @@ $sourceManifest = Get-Content "$root/packaging/upstream-sources.json" -Raw | Con
 foreach ($source in $sourceManifest.archives) {
     if (!$source.download_by_default) { continue }
     $path = Join-Path $sourceDir $source.filename
-    if (!(Test-Path $path)) { Invoke-WebRequest $source.url -OutFile $path }
+    if (!(Test-Path $path)) { Get-CpsFile -Url $source.url -Destination $path -Sha256 $source.sha256 }
     if ((Get-Item $path).Length -ne $source.bytes -or (Get-FileHash $path).Hash -ne $source.sha256) {
         throw "Upstream source verification failed: $path"
     }

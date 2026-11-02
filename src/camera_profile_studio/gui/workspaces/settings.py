@@ -7,14 +7,14 @@ import platform
 
 from PySide6 import __version__ as pyside_version
 from PySide6.QtCore import QLibraryInfo, Qt, qVersion
-from PySide6.QtWidgets import QApplication, QComboBox, QFormLayout, QGroupBox, QLabel, QPlainTextEdit
+from PySide6.QtWidgets import QApplication, QComboBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QPlainTextEdit, QVBoxLayout
 
 from ..app import THEMES, apply_theme, current_color_scheme
 from ..backend import LUT_SIZES
 from ..context import setting_int
 from ..i18n import T, tr
 from .. import about
-from ..widgets.common import HeadingLabel, WrapLabel, bind_combo, fill_combo, make_button
+from ..widgets.common import SPACE_S, HeadingLabel, WrapChoice, WrapLabel, bind_combo, fill_combo, make_button
 from .base import Workspace
 
 
@@ -62,6 +62,28 @@ class SettingsWorkspace(Workspace):
         form.addRow(self.theme_note)
         self.center_layout.addWidget(general)
 
+        # updates: the same switches as the automatic check at start-up, plus a manual check and the last result
+        self.updates_group = QGroupBox(self.center)
+        self.updates_group.setObjectName("settings_updates")
+        T.bind(self.updates_group, "setTitle", "settings.updates")
+        ul = QVBoxLayout(self.updates_group)
+        ul.setSpacing(SPACE_S)
+        self.update_auto = WrapChoice("settings.update.auto", parent=self.updates_group)
+        self.update_prerelease = WrapChoice("settings.update.prerelease", parent=self.updates_group)
+        self.update_check = make_button("update.action.check_now", parent=self.updates_group)
+        self.update_status = WrapLabel(parent=self.updates_group)
+        self.update_mode = WrapLabel(secondary=True, parent=self.updates_group)
+        check_row = QHBoxLayout()
+        check_row.setSpacing(SPACE_S)
+        check_row.addWidget(self.update_check, 0)
+        check_row.addWidget(self.update_status, 1)
+        ul.addWidget(self.update_auto)
+        ul.addWidget(self.update_prerelease)
+        ul.addLayout(check_row)
+        ul.addWidget(self.update_mode)
+        ul.addWidget(WrapLabel("settings.update.privacy", secondary=True, parent=self.updates_group))
+        self.center_layout.addWidget(self.updates_group)
+
         diag = QGroupBox(self.center)
         T.bind(diag, "setTitle", "settings.diagnostics")
         dform = QFormLayout(diag)
@@ -107,6 +129,26 @@ class SettingsWorkspace(Workspace):
         )
         self.diag_button.clicked.connect(self.run_diagnostics)
         T.watch(self, self._sync_language)
+        updates = ctx.updates
+        if updates is not None:
+            self.update_auto.setChecked(updates.auto_check)
+            self.update_prerelease.setChecked(updates.include_prereleases)
+            self.update_auto.toggled.connect(lambda on: setattr(updates, "auto_check", on))
+            self.update_prerelease.toggled.connect(lambda on: setattr(updates, "include_prereleases", on))
+            self.update_check.clicked.connect(lambda: updates.check(manual=True))
+            updates.state_changed.connect(self._sync_updates)
+            T.watch(self, self._sync_updates)
+            self._sync_updates()
+        else:
+            self.updates_group.setEnabled(False)
+
+    def _sync_updates(self) -> None:
+        """Last result, install mode and the Check now button (disabled with a reason while a check runs)."""
+        updates = self.ctx.updates
+        self.update_status.setText(updates.last_result_text())
+        self.update_mode.setText(updates.mode_text())
+        self.update_check.setEnabled(not updates.checking)
+        self.update_check.setToolTip(tr("update.reason.checking") if updates.checking else "")
 
     def primary_focus(self):
         return self.language

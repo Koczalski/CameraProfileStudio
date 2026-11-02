@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from PySide6.QtCore import QAbstractListModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QGuiApplication
@@ -38,11 +38,15 @@ class LogEntry:
     kwargs: dict[str, Any] = field(default_factory=dict)
     detail: str = ""
     stamp: float = field(default_factory=time.time)
+    action_key: str = ""  # label of an optional "open" action (e.g. open the checked LUT in LUT Check)
+    action: Callable[[], Any] | None = None
 
     def render(self) -> str:
         text = f"{time.strftime('%H:%M:%S', time.localtime(self.stamp))}  [{tr('log.level.' + self.level)}]  {tr(self.key, **self.kwargs)}"
         if self.detail:
             text += f" \u2014 {self.detail}"
+        if self.action is not None and self.action_key:
+            text += f"  [{tr(self.action_key)}]"
         return text
 
 
@@ -96,6 +100,11 @@ class Logger:
 
     def _add(self, level: str, key: str, detail: str = "", **kwargs: Any) -> None:
         self.model.add(LogEntry(level, key, kwargs, detail))
+
+    def add(self, level: str, key: str, detail: str = "", *, action_key: str = "",
+            action: Callable[[], Any] | None = None, **kwargs: Any) -> None:
+        """Log entry with an optional action (double-click, Enter or the Open button in the log tab)."""
+        self.model.add(LogEntry(level, key, kwargs, detail, action_key=action_key, action=action))
 
     def info(self, key: str, detail: str = "", **kwargs: Any) -> None:
         self._add("info", key, detail, **kwargs)
@@ -167,12 +176,22 @@ class BottomPanel(QTabWidget):
         lrow = QHBoxLayout()
         self.copy_button = make_button("log.copy", None)
         self.clear_button = make_button("log.clear", "delete")
+        self.log_model = log_model
+        self.action_button = make_button("log.run_action", "arrow_export_ltr")
         lrow.addWidget(self.copy_button)
         lrow.addWidget(self.clear_button)
+        lrow.addWidget(self.action_button)
         lrow.addStretch(1)
         ll.addLayout(lrow)
         self.copy_button.clicked.connect(self._copy_log)
         self.clear_button.clicked.connect(log_model.clear)
+        # entries that carry an action (e.g. "open in LUT Check"): double-click, Enter or the Open button
+        self.action_button.clicked.connect(self._run_action)
+        self.log_view.activated.connect(lambda _i: self._run_action())
+        self.log_view.selectionModel().currentChanged.connect(lambda *_: self._update_action_button())
+        log_model.rowsInserted.connect(lambda *_: self._update_action_button())
+        log_model.modelReset.connect(self._update_action_button)
+        self._update_action_button()
         log_model.rowsInserted.connect(lambda *_: self.log_view.scrollToBottom())
         self.log_model = log_model
         self.addTab(jobs_page, icons.icon("table"), "")
@@ -202,6 +221,23 @@ class BottomPanel(QTabWidget):
         jid = self._selected_job()
         if jid:
             self.jobs.cancel(jid)
+
+    def _action_entry(self) -> LogEntry | None:
+        row = self.log_view.currentIndex().row()
+        entries = self.log_model.entries
+        if 0 <= row < len(entries) and entries[row].action is not None:
+            return entries[row]
+        return None
+
+    def _update_action_button(self) -> None:
+        entry = self._action_entry()
+        self.action_button.setEnabled(entry is not None)
+        self.action_button.setToolTip(tr(entry.action_key) if entry is not None and entry.action_key else "")
+
+    def _run_action(self) -> None:
+        entry = self._action_entry()
+        if entry is not None and entry.action is not None:
+            entry.action()
 
     def _copy_log(self) -> None:
         rows = sorted(i.row() for i in self.log_view.selectionModel().selectedIndexes())

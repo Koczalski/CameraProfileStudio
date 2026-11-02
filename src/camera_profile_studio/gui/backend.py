@@ -23,13 +23,14 @@ from __future__ import annotations
 
 import csv
 import importlib
+import inspect
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
 import numpy as np
 
-from .jobs import CancelToken, ErrorInfo, JobCancelled, default_error_mapper
+from .jobs import CancelToken, ErrorInfo, JobCancelled, default_error_mapper, is_cancellation
 
 LUT_SIZES = (17, 33, 65)
 EXPORT_FORMATS = ("cube", "hald_png", "strip_png", "strip_png_flipped")
@@ -49,6 +50,18 @@ IMAGE_LOOK_MAX_REFERENCES = 64
 IMAGE_LOOK_AMOUNTS = ("tone_amount", "color_amount", "saturation_amount")
 IMAGE_LOOK_ROLES = ("reference", "base")
 IMAGE_LOOK_SETTING_KEYS = IMAGE_LOOK_AMOUNTS + ("seed", "analysis_size", "max_dimension")
+
+# LUT health check (docs/LUT_HEALTH_API.md).  Codes and order are the engine's.
+LUT_FILE_SUFFIXES = (".cube", ".3dl", ".png", ".tif", ".tiff")
+HEALTH_CODES = ("range", "tone_reversal", "gray_tint", "clipping", "tone_jump", "hue_fold", "banding_risk", "flatten")
+HEALTH_SEVERITIES = ("ok", "info", "warning", "error")
+HEALTH_ATTENTION = ("warning", "error")
+HEALTH_SOURCE_FORMATS = ("cube", "3dl", "hald_png", "strip_png", "cube_cps")
+HEALTH_LOG_CURVES = ("S-Log3", "V-Log", "F-Log2", "F-Log", "N-Log", "C-Log3", "ARRI LogC3", "Apple Log")
+REPAIR_KEYS = ("smooth", "fix_jumps", "round_clip", "lock_gray", "iterations")
+HUE_MAP_PER_AXIS = 8         # the hue map draws a regular 8x8x8 sub-grid (512 nodes, fewer after the neutral skip)
+HUE_MAP_MIN_CHROMA = 0.03    # inputs with less Oklab chroma than this are not drawn (no hue to show)
+HUE_MAP_MAX_MARKED = 64      # same cap as the engine's per-finding ``locations``
 
 # DNG tag numbers (Adobe DNG specification 1.6, chapter 6) used only to label
 # which supplied tags feed which feature; never to compute colour.
@@ -228,6 +241,98 @@ class ImageLookBuild:
     analysis: Any = None  # the ImageLookAnalysisView the LUT was fitted from
 
 
+# ----------------------------------------------------------------------------
+# LUT health check view models (plain Python / NumPy; engine records in .raw)
+# ----------------------------------------------------------------------------
+
+
+@dataclass
+class LoadedLutView:
+    """A LUT file (or an in-app LUT) as the check sees it."""
+
+    path: str  # file path, or "" for a LUT received from another page
+    size: int
+    title: str
+    source_format: str
+    domain_min: tuple[float, float, float]
+    domain_max: tuple[float, float, float]
+    warnings: list[str]
+    raw: Any = None  # engine LoadedLut, passed back unchanged
+
+
+@dataclass
+class HealthFindingView:
+    code: str
+    severity: str  # ok | info | warning | error
+    value: float
+    threshold: float
+    count: int
+    locations: list[tuple[int, int, int]]  # grid indices of the worst nodes
+    details: list[tuple[str, str]]
+
+    @property
+    def needs_attention(self) -> bool:
+        return self.severity in HEALTH_ATTENTION
+
+    def grey_positions(self, size: int) -> list[float]:
+        """Input levels (0..1) of flagged nodes that lie on the grey diagonal."""
+        if size < 2:
+            return []
+        return [i / (size - 1) for i, j, k in self.locations if i == j == k]
+
+
+@dataclass
+class KindView:
+    kind: str  # identity | display | log_to_display | display_to_log | unknown
+    confidence: float
+    log_candidates: list[tuple[str, float]]
+    note_key: str
+
+
+@dataclass
+class HealthView:
+    size: int
+    findings: list[HealthFindingView]
+    kind: KindView
+    gray_axis: np.ndarray  # (m, 7): input, R, G, B, Oklab L, a, b
+    hue_samples: np.ndarray  # (k, 6): in a, in b, out a, out b, flag bits, chroma
+    overall: str
+    provenance: list[tuple[str, str]]
+    raw: Any = None
+
+    def finding(self, code: str) -> HealthFindingView | None:
+        return next((f for f in self.findings if f.code == code), None)
+
+    @property
+    def attention(self) -> list[HealthFindingView]:
+        return [f for f in self.findings if f.needs_attention]
+
+    def attention_codes(self) -> list[str]:
+        return [f.code for f in self.attention]
+
+    def summary(self) -> dict[str, Any]:
+        """Compact JSON-safe record for the export sidecar (``health``)."""
+        return {"overall": self.overall,
+                "findings": [{"code": f.code, "severity": f.severity, "value": float(f.value)} for f in self.findings]}
+
+
+@dataclass
+class RepairView:
+    loaded: LoadedLutView  # the repaired LUT
+    change: tuple[float, float, float]  # DeltaE2000 mean, p99, max over the grid
+    before: HealthView
+    after: HealthView
+    settings: dict[str, Any]
+
+
+@dataclass
+class ExportCheck:
+    """Result of the pre-export check: never blocks the export."""
+
+    view: HealthView | None = None
+    error: str = ""  # non-empty when the check itself failed (export still ran)
+
+
 class EngineUnavailable(RuntimeError):
     pass
 
@@ -247,7 +352,8 @@ class Unsupported(RuntimeError):
 
 class Engine:
     PACKAGE = "camera_profile_studio"
-    MODULES = ("types", "errors", "service", "icc", "lcms", "lut", "images", "dcp", "look", "matching", "image_look")
+    MODULES = ("types", "errors", "service", "icc", "lcms", "lut", "images", "dcp", "look", "matching", "image_look",
+               "lut_health")
     #: Native extensions that engine functions import lazily (inside function
     #: bodies).  They must also be imported on the GUI thread; see preload().
     NATIVE_DEPENDENCIES = ("scipy.optimize", "scipy.sparse.linalg", "colour.difference", "cv2", "rawpy")
@@ -316,6 +422,7 @@ class Engine:
 
     def _context(self, token: CancelToken, progress: Callable[..., None] | None) -> Any:
         types = self._mod("types")
+        token = token if token is not None else CancelToken()
 
         def forward(p: Any) -> None:
             if progress is not None and not token.cancelled:
@@ -359,6 +466,11 @@ class Engine:
         "export_io_error": "error.code.export_io_error",
         "partial_publication": "error.code.partial_publication",
         "invalid_cube": "error.code.invalid_cube",
+        # LUT health check (0.3.0)
+        "lut_unreadable": "error.code.lut_unreadable",
+        "lut_1d_only": "error.code.lut_1d_only",
+        "lut_png_layout": "error.code.lut_png_layout",
+        "lut_size_unsupported": "error.code.lut_size_unsupported",
     }
     CLASS_KEYS = {
         "InvalidProfileError": "error.invalid_profile",
@@ -609,16 +721,153 @@ class Engine:
         """Geometry of a PNG LUT format for a built LUT size (for hints)."""
         return dict(self._mod("lut").png_layout(fmt, size))
 
-    def export(self, lut: LutData, path: str, overwrite: bool, token: CancelToken, fmt: str = "cube") -> ExportInfo:
+    def export_supports_extra_metadata(self) -> bool:
+        """Feature check: does ``lut.export_lut`` accept ``extra_metadata`` (0.3.0)?"""
+        try:
+            return "extra_metadata" in inspect.signature(self._mod("lut").export_lut).parameters
+        except (EngineUnavailable, TypeError, ValueError):
+            return False
+
+    def export(self, lut: LutData, path: str, overwrite: bool, token: CancelToken, fmt: str = "cube",
+               health: dict[str, Any] | None = None, extra: dict[str, Any] | None = None) -> ExportInfo:
+        """Write the LUT and its JSON sidecar.  ``health`` (``HealthView.summary()``) and ``extra`` go
+        into the sidecar through ``extra_metadata`` when the engine supports it."""
         lut_mod = self._mod("lut")
+        meta: dict[str, Any] = {}
+        if health:
+            meta["health"] = health
+        if extra:
+            meta.update(extra)
+        kwargs: dict[str, Any] = {}
+        if meta and self.export_supports_extra_metadata():
+            kwargs["extra_metadata"] = meta
         result = lut_mod.export_lut(lut.raw, Path(path), format=fmt, overwrite=overwrite,
-                                    context=self._context(token, None))
+                                    context=self._context(token, None), **kwargs)
         v = result.validation
         if not v.valid:
             # defensive: contract says invalid LUTs are never published
             raise Unsupported("error.export_invalid", "; ".join(v.errors))
         return ExportInfo(str(result.cube_path), str(result.metadata_path), str(result.sha256), bool(v.valid),
                           int(v.sample_count), [str(w) for w in v.warnings])
+
+    # -- LUT health check (docs/LUT_HEALTH_API.md) -------------------------------
+    def health_status(self) -> str:
+        """Empty string if the lut_health engine module imports, else the reason."""
+        try:
+            self._mod("lut_health")
+        except EngineUnavailable as exc:
+            return str(exc)
+        return ""
+
+    def loaded_view(self, loaded: Any, path: str | None = None) -> LoadedLutView:
+        """View of an engine ``LoadedLut``; ``path`` "" marks a LUT that came from another page."""
+        return LoadedLutView(
+            path=str(loaded.source_path) if path is None else path,
+            size=int(loaded.size), title=str(loaded.title), source_format=str(loaded.source_format),
+            domain_min=tuple(float(v) for v in loaded.domain_min), domain_max=tuple(float(v) for v in loaded.domain_max),
+            warnings=[str(w) for w in loaded.warnings], raw=loaded)
+
+    def load_lut_file(self, path: str, token: CancelToken, progress: Callable[..., None] | None = None) -> LoadedLutView:
+        """Read a .cube / .3dl / Hald or strip PNG / TIFF LUT of any grid size 2..129."""
+        mod = self._mod("lut_health")
+        return self.loaded_view(mod.load_lut_file(Path(path), context=self._context(token, progress)))
+
+    def hue_nodes(self, loaded: LoadedLutView, locations: Any = ()) -> tuple[np.ndarray, np.ndarray]:
+        """Arrows for the hue map in the Oklab a/b plane: ``(base, marked)``.
+
+        ``base``: at most 8x8x8 regularly spaced grid nodes of the LUT with near-neutral inputs skipped
+        (so the plane stays readable).  ``marked``: exactly the given grid indices (the selected
+        finding's ``locations``, at most 64).  Rows are ``(in_a, in_b, out_a, out_b)``; non-finite LUT
+        values are replaced by the identity, as the engine does when it diagnoses.
+        """
+        raw = loaded.raw
+        values = np.asarray(raw.values, dtype=np.float64)
+        n = int(values.shape[0])
+        to_lab = self._mod("image_look").srgb_to_oklab
+
+        def arrows(index: np.ndarray) -> np.ndarray:
+            index = np.asarray(index, dtype=np.intp).reshape(-1, 3)
+            if not len(index):
+                return np.zeros((0, 4))
+            grid = index / max(1, n - 1)
+            out = values[index[:, 0], index[:, 1], index[:, 2]]
+            out = np.where(np.isfinite(out), out, grid)
+            lab_in = np.asarray(to_lab(np.clip(grid, 0.0, 1.0)), dtype=np.float64).reshape(-1, 3)
+            lab_out = np.asarray(to_lab(np.clip(out, 0.0, 1.0)), dtype=np.float64).reshape(-1, 3)
+            return np.column_stack([lab_in[:, 1], lab_in[:, 2], lab_out[:, 1], lab_out[:, 2]])
+
+        axis = np.unique(np.round(np.linspace(0, n - 1, min(n, HUE_MAP_PER_AXIS))).astype(np.intp))
+        base_index = np.stack(np.meshgrid(axis, axis, axis, indexing="ij"), axis=-1).reshape(-1, 3)
+        base = arrows(base_index)
+        base = base[np.hypot(base[:, 0], base[:, 1]) >= HUE_MAP_MIN_CHROMA]
+        marked_index = [tuple(int(v) for v in loc) for loc in list(locations)[:HUE_MAP_MAX_MARKED]]
+        marked_index = [loc for loc in marked_index if all(0 <= v < n for v in loc)]
+        return base, arrows(np.asarray(marked_index, dtype=np.intp))
+
+    def health_flag_bits(self) -> dict[str, int]:
+        """Node flag bits of ``HealthReport.hue_samples[:, 4]`` per finding code (engine constant)."""
+        try:
+            return {str(k): int(v) for k, v in self._mod("lut_health").FLAG_BITS.items()}
+        except (EngineUnavailable, AttributeError, TypeError, ValueError):
+            return {}
+
+    def lut_to_loaded(self, lut: LutData) -> LoadedLutView:
+        """Wrap an in-app LUT so it can be diagnosed or repaired."""
+        return self.loaded_view(self._mod("lut_health").from_lut3d(lut.raw), path="")
+
+    def health_view(self, report: Any) -> HealthView:
+        findings = [
+            HealthFindingView(
+                str(f.code), str(f.severity), float(f.value), float(f.threshold), int(f.count),
+                [(int(a), int(b), int(c)) for a, b, c in np.asarray(f.locations).reshape(-1, 3)],
+                [(str(k), str(v)) for k, v in f.details])
+            for f in report.findings]
+        k = report.kind
+        kind = KindView(str(k.kind), float(k.confidence), [(str(n), float(s)) for n, s in k.log_candidates], str(k.note_key))
+        return HealthView(int(report.size), findings, kind, np.asarray(report.gray_axis, dtype=np.float64),
+                          np.asarray(report.hue_samples, dtype=np.float64), str(report.overall),
+                          [(str(a), str(b)) for a, b in report.provenance], report)
+
+    def diagnose(self, lut: Any, token: CancelToken | None = None,
+                 progress: Callable[..., None] | None = None) -> HealthView:
+        """Diagnose a ``LutData``, ``LoadedLutView`` or engine ``Lut3D`` / ``LoadedLut`` on its own grid."""
+        mod = self._mod("lut_health")
+        raw = lut.raw if isinstance(lut, (LutData, LoadedLutView)) else lut
+        return self.health_view(mod.diagnose_lut(raw, context=self._context(token, progress)))
+
+    def diagnose_for_export(self, lut: LutData, token: CancelToken | None) -> ExportCheck:
+        """Pre-export check.  Never raises (except cancellation): a failed or
+        unavailable check must not block the export."""
+        try:
+            self._mod("lut_health")
+        except EngineUnavailable:
+            return ExportCheck()
+        try:
+            return ExportCheck(self.diagnose(lut, token))
+        except BaseException as exc:  # noqa: BLE001 - reported in the log, export continues
+            if is_cancellation(exc):
+                raise
+            info = self.map_error(exc)
+            return ExportCheck(error=(info.summary() + (f" {info.detail}" if info.detail else "")).strip())
+
+    def repair(self, loaded: LoadedLutView, settings: dict[str, Any], token: CancelToken,
+               progress: Callable[..., None] | None = None) -> RepairView:
+        """Explicit repair (never automatic).  ``settings`` keys: :data:`REPAIR_KEYS`."""
+        mod = self._mod("lut_health")
+        unknown = set(settings) - set(REPAIR_KEYS)
+        if unknown:
+            raise Unsupported("error.validation", ", ".join(sorted(unknown)))
+        result = mod.repair_lut(loaded.raw, mod.RepairSettings(**settings), context=self._context(token, progress))
+        return RepairView(self.loaded_view(result.lut, path=loaded.path), tuple(float(v) for v in result.change),
+                          self.health_view(result.before), self.health_view(result.after), dict(settings))
+
+    def loaded_to_lutdata(self, loaded: LoadedLutView, size: int, token: CancelToken | None = None,
+                          progress: Callable[..., None] | None = None) -> LutData:
+        """Resample to 17/33/65 (tetrahedral) and clip, as an sRGB -> sRGB ``LutData`` for preview and export."""
+        if size not in LUT_SIZES:
+            raise Unsupported("reason.bad_size")
+        lut = self._mod("lut_health").to_lut3d(loaded.raw, size, context=self._context(token, progress))
+        return self.lut_view(lut)
 
     # -- matching --------------------------------------------------------------
     def read_patch_csv(self, path: str, evidence: str) -> Any:

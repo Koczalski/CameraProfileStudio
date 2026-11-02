@@ -93,7 +93,7 @@ Setup format.
 
 ## Checklist for publishing a release
 
-1. Build with `packaging/windows-launcher/Build-0.2.5.cmd` (fresh-source route).
+1. Build with `packaging/windows-launcher/Build-0.2.6.cmd` (fresh-source route).
    The build stops if the Qt source coverage, native boundary, camera-input or
    source-bundle checks fail.
 2. Publish the `Portable.zip`, `Setup.exe` and `Source.zip` produced by the build

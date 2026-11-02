@@ -1,0 +1,6 @@
+# Camera Profile Studio の「完了」判定（scripts/check.py が上から順に実行する）
+# 既定は速いテストだけ。GUI・LittleCMS・参照データ・Windows 統合のテストは除外している。
+set "CPS_LCMS2_DLL=%LOCALAPPDATA%\CameraProfileStudio-build-cache\lcms\81c5b72f8a3404f3ca5ec82791c5909b8eb79dbe3bf0840f73f5bbdb1e32a8b4\lcms2.dll" && .venv\Scripts\python.exe -m pytest -q -x -m "not gui and not lcms and not reference and not windows"
+
+# GUI テストも含めたいとき（PySide6 が入っていれば）は上の行を消して、こちらを有効にする:
+# py -3.12 -m pytest -q -x -m "not lcms and not reference"

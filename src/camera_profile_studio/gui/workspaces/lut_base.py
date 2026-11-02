@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..backend import EXPORT_FORMATS, FORMAT_FILES, LUT_SIZES, LutData
+from ..backend import EXPORT_FORMATS, FORMAT_FILES, LUT_SIZES, ExportCheck, LutData
 from ..context import setting_choice, setting_int
 from ..i18n import T, tr
 from ..jobs import ErrorInfo, JobState
@@ -62,6 +62,9 @@ def make_format_combo(ctx, parent) -> QComboBox:
 
 class LutWorkspace(Workspace):
     build_title_key = "job.build_lut"
+    has_strength = True        # False: the strength row of the output group is hidden (LUT Check)
+    show_check_action = True   # "Check this LUT" button in the output group (sends the LUT to LUT Check)
+    pre_export_check = True    # diagnose the LUT being exported and log one line (never blocks the export)
 
     def __init__(self, ctx, parent=None) -> None:
         super().__init__(ctx, parent)
@@ -144,6 +147,17 @@ class LutWorkspace(Workspace):
         self.strength_spin.valueChanged.connect(self.strength_slider.setValue)
         self.strength_spin.valueChanged.connect(lambda _v: self.settings_changed())
         self.size_combo.currentIndexChanged.connect(lambda _i: self.settings_changed())
+        if not self.has_strength:
+            form.setRowVisible(strength_row, False)
+            form.setRowVisible(self.strength_reason, False)
+        if self.show_check_action:
+            # send the LUT built here to LUT Check (disabled with the reason when there is none)
+            self.check_button = make_button("health.action.check", "checkmark_circle")
+            self.check_reason = DisabledReason(box)
+            self.check_button.clicked.connect(self.send_to_diagnosis)
+            form.addRow(self.check_button)
+            form.addRow(self.check_reason)
+            T.watch(box, self._update_check_button)
         return box
 
     def make_status_group(self) -> QGroupBox:
@@ -167,6 +181,31 @@ class LutWorkspace(Workspace):
         T.watch(self, self._render_status)
         return box
 
+    # ------------------------------------------------------------ LUT Check
+    def check_reason_key(self) -> tuple[str, dict] | None:
+        """Why the LUT cannot be sent to LUT Check now (None: it can)."""
+        if self.ctx.engine.available and self.ctx.engine.health_status():
+            return ("health.reason.unavailable", {})
+        reason = self.export_reason_key()
+        if reason is not None and reason[0] == "reason.exporting":
+            return None  # an export in progress does not prevent a check
+        return reason
+
+    def send_to_diagnosis(self) -> None:
+        if self.lut is None or self.check_reason_key() is not None:
+            return
+        self.ctx.send_to_diagnosis(self.lut, self.key)
+
+    def _update_check_button(self) -> None:
+        button = getattr(self, "check_button", None)
+        if button is None:
+            return
+        reason = self.check_reason_key()
+        key, kwargs = reason if reason else (None, {})
+        set_enabled_with_reason(button, self.check_reason, key, **kwargs)
+        if key is None:
+            button.setToolTip(tr("health.action.check_tip"))
+
     # --------------------------------------------------------------- hooks
     def build_precondition(self) -> tuple[str, dict] | None:
         """Return (reason_key, kwargs) if a LUT cannot be built now."""
@@ -182,6 +221,10 @@ class LutWorkspace(Workspace):
 
     def suggested_name(self) -> str:
         return "camera_profile_studio.cube"
+
+    def export_extra(self) -> dict:
+        """Extra sidecar entries (JSON-safe) written next to ``health`` by the export."""
+        return {}
 
     def export_format(self) -> str:
         combo = getattr(self, "format_combo", None)
@@ -372,10 +415,18 @@ class LutWorkspace(Workspace):
         if fmt is None:
             fmt = "cube" if target.suffix.lower() == ".cube" else self.export_format()
 
-        def work(token, progress):
-            return engine.export(lut, path, overwrite, token, fmt)
+        extra = self.export_extra() or None
 
-        def done(info):
+        def work(token, progress):
+            # Diagnose the LUT being written, in this background job.  The check never blocks the
+            # export: a failed or unavailable check only means there is no ``health`` entry.
+            check = engine.diagnose_for_export(lut, token) if self.pre_export_check else ExportCheck()
+            health = check.view.summary() if check.view is not None else None
+            return engine.export(lut, path, overwrite, token, fmt, health=health, extra=extra), check
+
+        def done(result):
+            info, check = result
+            self._log_health(check, lut)
             self.ctx.log.success("log.export.done", detail=f"{info.cube_path} | {info.metadata_path} | sha256 {info.sha256}",
                                  n=info.samples)
             for w in info.warnings:
@@ -393,6 +444,22 @@ class LutWorkspace(Workspace):
                                                 on_done=lambda _s: self._update_state())
         self._update_state()
         return self._export_job
+
+    def _log_health(self, check: ExportCheck, lut: LutData) -> None:
+        """One log line for the pre-export check, with an action that opens the LUT in LUT Check."""
+        if check.view is None:
+            if check.error:
+                self.ctx.log.warning("health.log.not_done", reason=check.error)
+            return
+        action = {}
+        if self.show_check_action:
+            handle = self.ctx.remember_for_diagnosis(lut, self.key)
+            action = {"action_key": "health.log.open", "action": lambda: self.ctx.open_remembered(handle)}
+        codes = check.view.attention_codes()
+        if codes:
+            self.ctx.log.add("warning", "health.log.warn", n=len(codes), codes=", ".join(codes), **action)
+        else:
+            self.ctx.log.add("success", "health.log.ok", **action)
 
     # ------------------------------------------------------------- state
     def _set_status(self, key: str, **kwargs) -> None:
@@ -429,6 +496,7 @@ class LutWorkspace(Workspace):
         busy = any(self.ctx.jobs.is_busy(f"{self.key}:{c}") for c in ("lut", "preview", "export", "image"))
         self.cancel_button.setEnabled(busy)
         self.domain_label.setText(self.domain_text())
+        self._update_check_button()
 
 
 

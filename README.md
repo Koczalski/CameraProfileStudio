@@ -37,6 +37,9 @@ A Windows app that turns camera profiles (ICC / DCP) and photos into 3D LUTs. A 
 ### 8. English / Japanese, Light / Dark
 * **Display**: Switch between English and Japanese, and between light and dark themes.
 
+### 9. Updates
+* **Update check**: Help > Check for updates… (and automatically at most once a day at start-up; can be turned off in Settings) looks at the public GitHub Releases. An installed copy can download, verify (SHA-256) and install the new version; a portable copy opens the download page. Only the public release list is requested, and nothing about you or your settings is sent.
+
 ## Technology Stack
 
 * **Language**: Python 3.12
@@ -56,7 +59,7 @@ python -m camera_profile_studio.gui.app
 
 * LittleCMS (lcms2.dll) is required. Build it with `scripts\build-lcms.ps1` or point `CPS_LCMS2_DLL` to it.
 * The sample camera profiles used by the tests are not included ([input/ccd_profiles/README.md](input/ccd_profiles/README.md), Japanese).
-* Building the exe: `packaging\windows-launcher\Build-0.2.5.cmd`
+* Building the exe: `packaging\windows-launcher\Build-0.2.6.cmd`
 * Detailed documentation: [docs/README.en.md](docs/README.en.md)
 
 ## Contribution & Feedback

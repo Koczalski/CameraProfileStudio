@@ -103,9 +103,12 @@ def create_application(argv: Sequence[str] | None = None, *, style: str | None =
 def main(argv: Sequence[str] | None = None) -> int:
     app = create_application(argv)
     from .main_window import MainWindow
+    from ..updates import acquire_app_mutex
 
+    acquire_app_mutex()   # the named mutex Inno Setup (AppMutex) looks for before upgrading in place
     window = MainWindow()
     window.show()
+    window.ctx.updates.schedule_auto_check()
     paths = [a for a in (argv if argv is not None else sys.argv)[1:] if not a.startswith("-")]
     if paths:
         window.open_profiles(paths)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -10,7 +11,7 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, QSettings,
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QWidget
 
 from . import icons
-from .backend import Engine, ProfileInfo
+from .backend import Engine, LutData, ProfileInfo
 from .i18n import T, tr
 from .jobs import ErrorInfo, JobManager
 
@@ -32,6 +33,19 @@ def setting_int(settings: QSettings, key: str, default: int, allowed: tuple[int,
 def setting_choice(settings: QSettings, key: str, default: str, allowed: tuple[str, ...]) -> str:
     value = str(settings.value(key, default))
     return value if value in allowed else default
+
+
+def setting_bool(settings: QSettings, key: str, default: bool) -> bool:
+    """Read a boolean setting; INI files return it as text ("true"/"false")."""
+    raw = settings.value(key, default)
+    if isinstance(raw, bool):
+        return raw
+    text = str(raw).strip().lower()
+    if text in ("true", "1", "yes", "on"):
+        return True
+    if text in ("false", "0", "no", "off"):
+        return False
+    return default
 from .widgets.log_panel import Logger, LogModel
 
 PROFILE_SUFFIXES = (".icc", ".icm", ".dcp")
@@ -149,6 +163,7 @@ class AppContext(QObject):
     profile_ready = Signal(object)  # ProfileEntry
     status_message = Signal(str)
     navigate = Signal(str)
+    lut_for_diagnosis = Signal(object, str)  # LutData, key of the sending page
 
     def __init__(self, engine: Engine, settings: QSettings, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -161,6 +176,9 @@ class AppContext(QObject):
         self.profiles = ProfilesModel(self)
         self._current: ProfileEntry | None = None
         self.window: QWidget | None = None
+        self.updates = None  # UpdateController, set by the main window before the workspaces are built
+        self._diagnosis_cache: dict[int, tuple[LutData, str]] = {}
+        self._diagnosis_ids = itertools.count(1)
 
     # -------------------------------------------------------------- profiles
     @property
@@ -254,6 +272,36 @@ class AppContext(QObject):
         if file:
             self.remember_dir("images", file)
         return file
+
+    def ask_lut(self) -> str:
+        """Open dialog for a 3D LUT file (LUT Check); remembers the folder."""
+        file, _ = QFileDialog.getOpenFileName(self.window, tr("health.dialog.open"), self.last_dir("luts"), tr("health.filter.lut"))
+        if file:
+            self.remember_dir("luts", file)
+        return file
+
+    # ------------------------------------------------------------ LUT Check hand-over
+    DIAGNOSIS_KEEP = 3  # LUTs kept for "open in LUT Check" log entries (older ones are released)
+
+    def send_to_diagnosis(self, lut: LutData, page_key: str) -> None:
+        """Hand ``lut`` (built on page ``page_key``) to LUT Check and show that page."""
+        self.lut_for_diagnosis.emit(lut, page_key)
+        self.navigate.emit("diagnose")
+
+    def remember_for_diagnosis(self, lut: LutData, page_key: str) -> int:
+        handle = next(self._diagnosis_ids)
+        self._diagnosis_cache[handle] = (lut, page_key)
+        while len(self._diagnosis_cache) > self.DIAGNOSIS_KEEP:
+            del self._diagnosis_cache[next(iter(self._diagnosis_cache))]
+        return handle
+
+    def open_remembered(self, handle: int) -> bool:
+        item = self._diagnosis_cache.get(handle)
+        if item is None:
+            self.log.info("health.log.expired")
+            return False
+        self.send_to_diagnosis(*item)
+        return True
 
     def ask_save(self, title_key: str, suggested: str, filter_key: str, kind: str) -> str:
         start = str(Path(self.last_dir(kind)) / suggested)

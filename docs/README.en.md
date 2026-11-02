@@ -4,7 +4,7 @@
 
 > **Source version 0.2.5** is 0.2.4 plus a new Image Look Creator engine (Oklab distribution matching;
 > optional *base* images, the user's own photos the look will be applied to; no more neutral-protection
-> setting) and tetrahedral LUT interpolation; see docs/BUILD_0.2.5.md and
+> setting) and tetrahedral LUT interpolation; see docs/BUILD_0.2.6.md and
 > [docs/IMAGE_LOOK_GUIDE.ja.md](IMAGE_LOOK_GUIDE.ja.md).
 > 0.2.4 was 0.2.3 plus exception-handling hardening (specific, localised error
 > messages; exports on exFAT/FAT32; damaged settings no longer block start-up).
@@ -12,7 +12,7 @@
 > rejected as unsupported). 0.2.2 was 0.2.1 plus PNG LUT export (Hald CLUT and strip PNG besides .cube)
 > and error prevention in Batch Processing (items that cannot
 > run with the current settings are flagged with the reason before the run); 0.2.1 added GUI fixes
-> and an About/licences view (see docs/BUILD_0.2.5.md). 0.2.0 added the **Image Look Creator** (approximate, unverified;
+> and an About/licences view (see docs/BUILD_0.2.6.md). 0.2.0 added the **Image Look Creator** (approximate, unverified;
 > see [docs/IMAGE_LOOK_GUIDE.ja.md](IMAGE_LOOK_GUIDE.ja.md)). For the validation
 > scope of 0.2.0, consult the 0.2.0 release report supplied with its artifacts. The
 > historical evidence below describes **0.1.0**, not the Image Look Creator.
@@ -352,7 +352,7 @@ with `allow_pickle=False`, and the uncompressed limit is 256 MiB.
 
 ## Build the Windows artifacts
 
-> **Building 0.2.5:** follow [docs/BUILD_0.2.5.md](BUILD_0.2.5.md). It covers the
+> **Building 0.2.5:** follow [docs/BUILD_0.2.6.md](BUILD_0.2.6.md). It covers the
 > fresh-checkout route (`scripts/build-fresh-source.ps1`) and the protected local
 > release route (`scripts/build-release.ps1`). The `build-windows.ps1` commands and the
 > results in the rest of this section are the historical **0.1.0** build, not current

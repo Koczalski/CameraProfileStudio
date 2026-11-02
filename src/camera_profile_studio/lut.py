@@ -259,10 +259,43 @@ def _output_path(path) -> Path:
     return Path(path)
 
 
+EXTRA_METADATA_LIMIT = 64 * 1024
+_CORE_METADATA_KEYS = frozenset({'schema_version', 'cube_sha256', 'png_sha256', 'format', 'title', 'size', 'input_space',
+                                 'output_space', 'strength', 'domain_min', 'domain_max', 'png', 'provenance',
+                                 'software', 'validation'})
+
+
+def _check_extra_metadata(extra: dict | None) -> dict | None:
+    """Validate caller-supplied sidecar entries: a JSON-safe dict of at most 64 KiB whose keys do not
+    replace the keys this module writes itself."""
+    if extra is None:
+        return None
+    if not isinstance(extra, dict) or any(not isinstance(key, str) or not key for key in extra):
+        raise ValidationError('extra_metadata must be a dict with text keys', code='invalid_extra_metadata')
+    clash = sorted(set(extra) & _CORE_METADATA_KEYS)
+    if clash:
+        raise ValidationError('extra_metadata must not replace sidecar keys: ' + ', '.join(clash),
+                              code='invalid_extra_metadata')
+    try:
+        text = json.dumps(extra, ensure_ascii=True, allow_nan=False, sort_keys=True)
+    except (TypeError, ValueError, RecursionError) as exc:
+        raise ValidationError(f'extra_metadata must be JSON-safe: {exc}', code='invalid_extra_metadata') from exc
+    if len(text.encode('ascii')) > EXTRA_METADATA_LIMIT:
+        raise ValidationError('extra_metadata exceeds the 64 KiB limit', code='invalid_extra_metadata')
+    return json.loads(text)
+
+
+def _with_extra(metadata: dict, extra: dict | None) -> dict:
+    if extra:
+        metadata = {**metadata, **extra}
+    return metadata
+
+
 def export_cube(lut: Lut3D, path: Path, *, overwrite: bool = False,
-                context: JobContext | None = None) -> ExportResult:
+                context: JobContext | None = None, extra_metadata: dict | None = None) -> ExportResult:
     checkpoint(context, stage='export_cube', fraction=0)
     report = _require_valid(lut)
+    extra = _check_extra_metadata(extra_metadata)
     path = _output_path(path)
     if path.suffix.lower() != '.cube':
         raise ExportError('Output filename must end in .cube', code='invalid_export_path')
@@ -283,10 +316,11 @@ def export_cube(lut: Lut3D, path: Path, *, overwrite: bool = False,
             os.fsync(stream.fileno())
 
     def metadata(digest: str) -> dict:
-        return dict(schema_version=1, cube_sha256=digest, title=lut.title, size=size,
-                    input_space=asdict(lut.input_space), output_space=asdict(lut.output_space),
-                    strength=lut.strength, domain_min=[0, 0, 0], domain_max=[1, 1, 1],
-                    provenance=dict(lut.provenance), software=_software(), validation=asdict(report))
+        return _with_extra(dict(schema_version=1, cube_sha256=digest, title=lut.title, size=size,
+                                input_space=asdict(lut.input_space), output_space=asdict(lut.output_space),
+                                strength=lut.strength, domain_min=[0, 0, 0], domain_max=[1, 1, 1],
+                                provenance=dict(lut.provenance), software=_software(), validation=asdict(report)),
+                           extra)
 
     return _publish(path, '.cube', 'export_cube', write, metadata, report, overwrite, context)
 
@@ -534,14 +568,19 @@ def decode_png(blob: bytes) -> np.ndarray:
 
 
 def export_lut(lut: Lut3D, path: Path, *, format: str = 'cube', overwrite: bool = False,
-               context: JobContext | None = None) -> ExportResult:
-    """Export ``lut`` as a .cube or as a PNG LUT image plus JSON sidecar."""
+               context: JobContext | None = None, extra_metadata: dict | None = None) -> ExportResult:
+    """Export ``lut`` as a .cube or as a PNG LUT image plus JSON sidecar.
+
+    ``extra_metadata`` (optional JSON-safe dict, at most 64 KiB) is merged into the sidecar under its own
+    keys, for example ``{"health": {...}}``; it cannot replace the keys written by this module.
+    """
     if format == 'cube':
-        return export_cube(lut, path, overwrite=overwrite, context=context)
+        return export_cube(lut, path, overwrite=overwrite, context=context, extra_metadata=extra_metadata)
     checkpoint(context, stage='export_png', fraction=0)
     if format not in EXPORT_FORMATS:
         raise ExportError(f'Unknown export format: {format}', code='invalid_export_format')
     report = _require_valid(lut)
+    extra = _check_extra_metadata(extra_metadata)
     path = _output_path(path)
     if path.suffix.lower() != '.png':
         raise ExportError('Output filename must end in .png', code='invalid_export_path')
@@ -572,9 +611,10 @@ def export_lut(lut: Lut3D, path: Path, *, format: str = 'cube', overwrite: bool 
                                else 'x = b*N + r, y = ' + ('N-1-g (green upwards)' if layout['flipped'] else 'g (green downwards)')),
                    resampling=(f"tetrahedral from {layout['source_size']}^3" if resampled else 'none'),
                    read_back='decoded PNG equals the quantized values')
-        return dict(schema_version=1, format=format, png_sha256=digest, title=lut.title, size=layout['source_size'],
-                    input_space=asdict(lut.input_space), output_space=asdict(lut.output_space),
-                    strength=lut.strength, domain_min=[0, 0, 0], domain_max=[1, 1, 1], png=png,
-                    provenance=dict(lut.provenance), software=_software(), validation=asdict(report))
+        return _with_extra(dict(schema_version=1, format=format, png_sha256=digest, title=lut.title,
+                                size=layout['source_size'], input_space=asdict(lut.input_space),
+                                output_space=asdict(lut.output_space), strength=lut.strength, domain_min=[0, 0, 0],
+                                domain_max=[1, 1, 1], png=png, provenance=dict(lut.provenance),
+                                software=_software(), validation=asdict(report)), extra)
 
     return _publish(path, '.png', 'export_png', write, metadata, report, overwrite, context)

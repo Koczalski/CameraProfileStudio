@@ -1056,9 +1056,21 @@ JA: dict[str, str] = {
 # fmt: on
 
 from .strings_imagelook import EN as _IMAGELOOK_EN, JA as _IMAGELOOK_JA  # noqa: E402
+from .strings_health import EN as _HEALTH_EN, JA as _HEALTH_JA  # noqa: E402
 
 EN.update(_IMAGELOOK_EN)
 JA.update(_IMAGELOOK_JA)
+_clash = (set(EN) & set(_HEALTH_EN)) | (set(JA) & set(_HEALTH_JA))
+assert not _clash, sorted(_clash)  # new LUT Check keys must not shadow existing ones
+EN.update(_HEALTH_EN)
+JA.update(_HEALTH_JA)
+
+from .strings_update import EN as _UPDATE_EN, JA as _UPDATE_JA  # noqa: E402
+
+_clash = (set(EN) & set(_UPDATE_EN)) | (set(JA) & set(_UPDATE_JA))
+assert not _clash, sorted(_clash)  # in-app update keys must not shadow existing ones
+EN.update(_UPDATE_EN)
+JA.update(_UPDATE_JA)
 
 STRINGS = {"en": EN, "ja": JA}
 

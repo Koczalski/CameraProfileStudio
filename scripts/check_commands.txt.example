@@ -1,0 +1,16 @@
+# check_commands.txt にリネームすると、自動検出の代わりにこのコマンドが上から順に実行されます。
+# 1行1コマンド。最初に失敗したところで止まり、GATE: FAIL になります。
+# 速いチェック（lint・型）を上に、遅いもの（テスト・ビルド）を下に置くと待ち時間が減ります。
+
+# --- Python の例 ---
+python -m ruff check .
+python -m mypy src
+python -m pytest -q
+
+# --- Node / TypeScript の例 ---
+# npm run typecheck
+# npm run lint
+# npm test
+
+# --- 「動くこと」の確認の例（起動して即終了できるオプションがある場合） ---
+# python main.py --self-test

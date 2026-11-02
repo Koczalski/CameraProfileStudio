@@ -1,16 +1,18 @@
-param([switch]$SkipCompile, [ValidateSet('', '0.2.5')][string]$ReleaseVersion = '')
+param([switch]$SkipCompile, [ValidateSet('', '0.2.6')][string]$ReleaseVersion = '')
 $ErrorActionPreference = 'Stop'
+. "$PSScriptRoot/build-common.ps1"
+Set-CpsPhase 'lcms-and-environment'
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 $stem = 'CameraProfileStudio'
 if ($ReleaseVersion) {
     if ($SkipCompile) { throw 'A new release must compile fresh source' }
-    if ($env:CPS_ISOLATED_BUILD -ne $root -or ($root -notlike '*/output/releases/0.2.5/workspace' -and $root -notlike '*\output\releases\0.2.5\workspace')) {
+    if ($env:CPS_ISOLATED_BUILD -ne $root -or ($root -notlike '*/output/releases/0.2.6/workspace' -and $root -notlike '*\output\releases\0.2.6\workspace')) {
         throw 'Use build-release.ps1 with an explicitly approved source freeze'
     }
     $stem += "-$ReleaseVersion"
-} elseif ((Get-Content "$root/pyproject.toml" -Raw) -match 'version = "0.2.5"') {
-    throw '0.2.5 cannot write legacy release output; use build-release.ps1'
+} elseif ((Get-Content "$root/pyproject.toml" -Raw) -match 'version = "0.2.6"') {
+    throw '0.2.6 cannot write legacy release output; use build-release.ps1'
 }
 $python = Join-Path $root '.venv/Scripts/python.exe'
 $out = Join-Path $root 'output/distribution'
@@ -35,8 +37,10 @@ foreach ($file in @('lcms2.dll','LICENSE','SOURCE.json')) {
 }
 & $python -c 'import sys; assert sys.version_info[:2] == (3,12); import nuitka, PySide6, numpy, scipy'
 if ($LASTEXITCODE -ne 0) { throw 'Build environment check failed' }
+Set-CpsPhase 'bootstrap'
 & "$PSScriptRoot/build-bootstrap.ps1" *> "$out/bootstrap.log"
 if (!$?) { throw 'Bootstrap failed' }
+Set-CpsPhase 'toolchain-and-licenses'
 # Import the existing MSVC toolchain into this process only.
 $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
 $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
@@ -51,7 +55,13 @@ cmd /c "`"$vcvars`" >nul && set" | ForEach-Object {
   ConvertTo-Json | Set-Content "$out/toolchain-environment.json"
 Copy-Item "$out/toolchain-environment.json" "$out/third-party-source/" -Force
 $env:PYTHONPATH = Join-Path $root 'src'
-$env:NUITKA_CACHE_DIR = Join-Path $root '.tools/packaging/nuitka-cache'
+# Nuitka's cache holds its downloaded helper tools (depends.exe), the C object cache (clcache) and its bytecode and
+# DLL-dependency caches, all content-addressed. With CPS_BUILD_CACHE it persists across builds; otherwise it stays
+# private to this stage as before.
+$buildCache = Get-CpsCacheRoot
+if ($buildCache) { $env:NUITKA_CACHE_DIR = Join-Path $buildCache 'nuitka' }
+else { $env:NUITKA_CACHE_DIR = Join-Path $root '.tools/packaging/nuitka-cache' }
+New-Item -ItemType Directory -Force $env:NUITKA_CACHE_DIR | Out-Null
 if (!$ReleaseVersion) {
     & $python -m pip freeze --all | Where-Object { $_ -notmatch 'camera-profile-studio|^-e | @ file:' } | Set-Content -Encoding ascii requirements-lock.txt
 } else {
@@ -79,6 +89,9 @@ if ($SkipCompile) {
 } else {
     & $python packaging/source_fingerprint.py write "$out/compiled-inputs.json"
     if ($LASTEXITCODE -ne 0) { throw 'Failed to snapshot compilation inputs' }
+    Set-CpsPhase 'nuitka'
+    $jobs = Get-CpsCompileJobs
+    Write-Host "Nuitka: --jobs=$jobs, cache directory $env:NUITKA_CACHE_DIR"
     $args = @('-m','nuitka','--mode=standalone','--msvc=latest','--enable-plugin=pyside6',
         '--include-qt-plugins=platforms,styles,imageformats','--windows-console-mode=attach',
         '--noinclude-dlls=*/qpdf.dll','--noinclude-dlls=qt6pdf.dll','--noinclude-dlls=Qt6Pdf.dll','--noinclude-dlls=*/Qt6Pdf.dll','--noinclude-dlls=*/opencv_videoio_ffmpeg*.dll',
@@ -86,12 +99,15 @@ if ($SkipCompile) {
         '--include-package=camera_profile_studio','--include-package-data=camera_profile_studio',
         '--include-distribution-metadata=camera-profile-studio',
         "--include-data-dir=$iconSource=camera_profile_studio/gui/icons",
-        '--report=output/distribution/nuitka-report.xml','--jobs=4','packaging/launcher.py')
+        '--report=output/distribution/nuitka-report.xml',"--jobs=$jobs",'packaging/launcher.py')
     $ErrorActionPreference = 'Continue'
     & $python @args *> "$out/nuitka-build.log"
     $compileExit = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     if ($compileExit -ne 0) { throw "Nuitka failed; see $out/nuitka-build.log" }
+    $cacheLine = Select-String -LiteralPath "$out/nuitka-build.log" -Pattern 'cache hits' -ErrorAction SilentlyContinue | Select-Object -Last 1
+    if ($cacheLine) { Write-Host ('Nuitka C object cache: ' + $cacheLine.Line.Trim()) }
+    Set-CpsPhase 'post-compile-checks'
     & $python packaging/source_fingerprint.py check "$out/compiled-inputs.json"
     if ($LASTEXITCODE -ne 0) { throw 'Source changed during compilation; do not distribute this build' }
 }
@@ -116,6 +132,7 @@ foreach ($file in @('lcms2.dll','LICENSE','SOURCE.json')) {
         throw "Packaged LCMS file differs from runtime worker output: $file"
     }
 }
+Set-CpsPhase 'native-audit-and-collection'
 & $python packaging/audit_native.py $dist "$out/native-binary-inventory.json"
 if ($LASTEXITCODE -ne 0) { throw 'Native library boundary audit failed' }
 Copy-Item licenses "$dist/" -Recurse -Force
@@ -133,16 +150,28 @@ Copy-Item "$out/third-party-source" "$dist/" -Recurse -Force
 if (Test-Path 'licenses/Python-LICENSE.txt') { Copy-Item 'licenses/Python-LICENSE.txt' "$dist/licenses/" }
 & $python packaging/collect_evidence.py "$dist/evidence"
 if ($LASTEXITCODE -ne 0) { throw 'Evidence collection failed' }
+Set-CpsPhase 'installer-and-portable-zip'
+# The portable ZIP and the installer are independent readers of the finished payload: build the ZIP in a second
+# process while ISCC (the slow one) runs, each with its own log. Both results are checked before continuing.
+$zipCode = "import shutil; shutil.make_archive(r'$root/output/$stem-Portable', 'zip', r'$root/output/distribution', 'launcher.dist')"
+$zipProcess = Start-Process -FilePath ([IO.Path]::GetFullPath($python)) -ArgumentList @('-c', ('"{0}"' -f $zipCode)) `
+    -WorkingDirectory $root -NoNewWindow -PassThru -RedirectStandardOutput "$out/portable-zip.log" -RedirectStandardError "$out/portable-zip.err.txt"
+# Windows PowerShell 5.1 needs the handle cached before the process exits to read ExitCode.
+try { $null = $zipProcess.Handle } catch { }
+$blockThreads = Get-CpsInstallerThreads
+Write-Host "Installer: lzma2/fast with $blockThreads compression block threads"
 $ErrorActionPreference = 'Continue'
-& '.tools/packaging/inno-6.0.5/app/ISCC.exe' "/DPayloadDir=$dist" "/DOutputDir=$root/output" "/DReleaseVersion=$(if ($ReleaseVersion) { $ReleaseVersion } else { '0.1.0' })" "/DArtifactStem=$stem" 'packaging/CameraProfileStudio.iss' *> "$out/installer-build.log"
+& '.tools/packaging/inno-6.0.5/app/ISCC.exe' "/DBlockThreads=$blockThreads" "/DPayloadDir=$dist" "/DOutputDir=$root/output" "/DReleaseVersion=$(if ($ReleaseVersion) { $ReleaseVersion } else { '0.1.0' })" "/DArtifactStem=$stem" 'packaging/CameraProfileStudio.iss' *> "$out/installer-build.log"
 $installerExit = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
+$zipProcess.WaitForExit()
 if ($installerExit -ne 0) { throw 'Installer compilation failed' }
-& $python -c "import shutil; shutil.make_archive('output/$stem-Portable', 'zip', 'output/distribution', 'launcher.dist')"
-if ($LASTEXITCODE -ne 0) { throw 'ZIP creation failed' }
+if ($zipProcess.ExitCode -ne 0) { throw "ZIP creation failed; see $out/portable-zip.err.txt" }
+Set-CpsPhase 'hashes-and-inventory'
 $artifactHashes = Get-FileHash "output/$stem-Setup.exe","output/$stem-Portable.zip" -Algorithm SHA256
 $artifactHashes | Format-List | Out-File "$out/SHA256.txt"
 $artifactHashes | ForEach-Object { @{file=(Split-Path $_.Path -Leaf); sha256=$_.Hash; bytes=(Get-Item $_.Path).Length} } |
     ConvertTo-Json | Set-Content "$out/artifact-hashes.json"
 Get-ChildItem $dist -File -Recurse | Select-Object @{n='Path';e={$_.FullName.Substring($dist.Length+1)}},Length | Export-Csv "$out/inventory.csv" -NoTypeInformation
+Save-CpsPhases "$out/build-windows-phases.json"
 Write-Host 'Artifacts built. Run scripts/verify_distribution.ps1 before distributing.'

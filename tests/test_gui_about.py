@@ -59,9 +59,9 @@ def test_declared_licence_matches_the_licence_file():
     assert (ROOT / "licenses" / "APP-LICENSE.txt").read_bytes() == (ROOT / "LICENSE").read_bytes()
 
 
-def test_help_menu_offers_licences_and_about(win):
+def test_help_menu_offers_updates_licences_and_about(win):
     actions = [a for a in win.help_menu.actions() if not a.isSeparator()]
-    assert actions == [win.act_licenses, win.act_about]
+    assert actions == [win.act_check_updates, win.act_licenses, win.act_about]
 
 
 def test_licence_entries_come_from_the_shipped_folder():

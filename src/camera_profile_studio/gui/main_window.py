@@ -1,10 +1,10 @@
 ﻿"""Main window: left navigation (Model/View list), workspace stack, bottom
 Jobs/Log panel, menu bar and status bar.
 
-Navigation follows Microsoft "Navigation basics": a flat structure of seven
-peer pages (< 8) with a left navigation list, each page clearly labelled with
-a title at the top.  New pages are appended so existing Ctrl+1..6 shortcuts
-and list adjacency stay unchanged (Image Look Creator is Ctrl+7).
+Navigation follows Microsoft "Navigation basics": a flat structure of eight
+peer pages with a left navigation list, each page clearly labelled with a
+title at the top.  New pages are appended so existing Ctrl+1..6 shortcuts and
+list adjacency stay unchanged (Image Look Creator is Ctrl+7, LUT Check Ctrl+8).
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QSplitter,
     QStackedWidget,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -28,10 +29,13 @@ from .app import settings as app_settings
 from .backend import Engine
 from .context import AppContext
 from .i18n import T, strip_mnemonic, tr
+from .updater import UpdateController
 from .widgets.log_panel import BottomPanel
+from .widgets.update_dialog import UpdateBar
 from .workspaces.base import Workspace
 from .workspaces.batch import BatchWorkspace
 from .workspaces.converter import ConverterWorkspace
+from .workspaces.diagnose import DiagnoseWorkspace
 from .workspaces.image_look import ImageLookWorkspace
 from .workspaces.inspector import InspectorWorkspace
 from .workspaces.look import LookWorkspace
@@ -39,7 +43,7 @@ from .workspaces.match import MatchWorkspace
 from .workspaces.settings import SettingsWorkspace
 
 WORKSPACES = (InspectorWorkspace, ConverterWorkspace, LookWorkspace, MatchWorkspace, BatchWorkspace, SettingsWorkspace,
-              ImageLookWorkspace)
+              ImageLookWorkspace, DiagnoseWorkspace)
 
 
 class NavigationView(QListView):
@@ -106,6 +110,7 @@ class MainWindow(QMainWindow):
             # pool threads (see Engine.preload).
             self.ctx.engine.preload()
         self._install_exception_hook()
+        self.updates = self.ctx.updates = UpdateController(self.ctx)   # before the workspaces: Settings talks to it
         T.bind(self, "setWindowTitle", "app.title")
         self.setMinimumSize(720, 480)
         # navigation
@@ -134,7 +139,16 @@ class MainWindow(QMainWindow):
         self.hsplit.setStretchFactor(0, 0)
         self.hsplit.setStretchFactor(1, 1)
         self.hsplit.setChildrenCollapsible(False)
-        self.setCentralWidget(self.hsplit)
+        # update notice (hidden until an automatic check finds a newer version) above the workspaces
+        self.update_bar = UpdateBar(self.ctx.updates)
+        self.ctx.updates.bar = self.update_bar
+        central = QWidget()
+        central_layout = QVBoxLayout(central)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+        central_layout.addWidget(self.update_bar)
+        central_layout.addWidget(self.hsplit, 1)
+        self.setCentralWidget(central)
         self.nav.selectionModel().currentChanged.connect(self._nav_changed)
         self.ctx.navigate.connect(self.show_workspace)
         self.ctx.status_message.connect(lambda m: self.statusBar().showMessage(m, 8000))
@@ -185,8 +199,10 @@ class MainWindow(QMainWindow):
         self.act_lang = self._action("menu.switch_language", self._switch_language, QKeySequence("Ctrl+Shift+L"),
                                      "local_language")
         self.view_menu.addAction(self.act_lang)
+        self.act_check_updates = self._action("menu.check_updates", lambda _c=False: self.ctx.updates.check(manual=True))
         self.act_licenses = self._action("menu.licenses", self.show_licenses, None, "document_table")
         self.act_about = self._action("menu.about", self._about, None, "info")
+        self.help_menu.addAction(self.act_check_updates)
         self.help_menu.addAction(self.act_licenses)
         self.help_menu.addSeparator()
         self.help_menu.addAction(self.act_about)
@@ -354,8 +370,9 @@ class MainWindow(QMainWindow):
                 event.ignore()
                 QTimer.singleShot(200, self.close)
             return
-        if jobs.active() and not getattr(self, "_force_close", False):
-            if not self.ctx.confirm("dialog.quit_title", "dialog.quit_running", n=len(jobs.active())):
+        running = [r for r in jobs.active() if not r.background]   # an update check never blocks closing
+        if running and not getattr(self, "_force_close", False):
+            if not self.ctx.confirm("dialog.quit_title", "dialog.quit_running", n=len(running)):
                 event.ignore()
                 return
         s = self.ctx.settings
