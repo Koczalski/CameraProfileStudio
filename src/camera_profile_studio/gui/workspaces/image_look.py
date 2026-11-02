@@ -63,7 +63,7 @@ from ..backend import (
     LutData,
     to_qimage,
 )
-from ..i18n import T, tr
+from ..i18n import T, bind_text, tr
 from ..jobs import ErrorInfo
 from ..widgets.common import (
     SPACE_S,
@@ -527,6 +527,18 @@ class ImageLookWorkspace(LutWorkspace):
         bar.addWidget(self.remove_button)
         bar.addStretch(1)
         rl.addLayout(bar)
+        # only while images could not be read: one click instead of one row at a time
+        self.failed_row = QWidget(refs_pane)
+        fl = QHBoxLayout(self.failed_row)
+        fl.setContentsMargins(0, 0, 0, 0)
+        fl.setSpacing(SPACE_S)
+        self.remove_failed_button = make_button("imagelook.remove_failed", "delete")
+        self.retry_failed_button = make_button("imagelook.retry_failed")
+        fl.addWidget(self.remove_failed_button)
+        fl.addWidget(self.retry_failed_button)
+        fl.addStretch(1)
+        self.failed_row.setVisible(False)
+        rl.addWidget(self.failed_row)
         # own row: three commands plus the longer count text do not fit side by side in the narrow centre column
         self.count_label = WrapLabel("", parent=refs_pane)
         rl.addWidget(self.count_label)
@@ -729,6 +741,8 @@ class ImageLookWorkspace(LutWorkspace):
         self.use_target_as_base_button.clicked.connect(lambda _checked=False: self.add_preview_as_base())
         self.preview.image_loaded.connect(lambda _d: self._update_state())
         self.remove_button.clicked.connect(self.remove_selected)
+        self.remove_failed_button.clicked.connect(self.remove_failed)
+        self.retry_failed_button.clicked.connect(self.retry_failed)
         self.table.files_dropped.connect(self.add_references)
         self.table.remove_requested.connect(self.remove_selected)
         self.table.selectionModel().currentRowChanged.connect(lambda _c, _p: self._selection_changed())
@@ -973,12 +987,33 @@ class ImageLookWorkspace(LutWorkspace):
             return
         self.remove_rows(rows)
 
+    def _failed_rows(self) -> list[int]:
+        return [row for row, it in enumerate(self.model.items) if it.state == "failed"]
+
+    def remove_failed(self) -> None:
+        """Take every row that could not be read off the list (the files are left alone)."""
+        self.remove_rows(self._failed_rows())
+
+    def retry_failed(self) -> None:
+        """Read the failed rows again, e.g. after a file was unlocked or a drive came back."""
+        items = [self.model.items[row] for row in self._failed_rows()]
+        if not items:
+            return
+        for it in items:
+            it.state, it.error = "queued", None
+            self._load_queue.append(it.uid)
+            self.model.changed(it.uid)
+        self.ctx.log.info("imagelook.log.retry", n=len(items))
+        self._pump_loads()
+        self._selection_changed()
+        self._update_state()
+
     def remove_rows(self, rows: list[int]) -> None:
         removed = self.model.remove_rows(rows)
         for it in removed:
             self._drop_load(it.uid)
         if removed:
-            self.ctx.log.info("imagelook.log.removed", n=len(removed))
+            self.ctx.log.info("imagelook.log.removed", detail=", ".join(it.name for it in reversed(removed)), n=len(removed))
             self._pump_loads()
             if self.model.rowCount():
                 self.select_row(min(min(rows), self.model.rowCount() - 1))
@@ -1144,6 +1179,8 @@ class ImageLookWorkspace(LutWorkspace):
             return reason
         included = self.model.included()
         failed = [it for it in included if it.state == "failed"]
+        if len(failed) > 1:
+            return ("imagelook.reason.refs_failed", {"n": len(failed), "name": failed[0].name})
         if failed:
             return ("imagelook.reason.ref_failed", {"name": failed[0].name})
         bad = [it for it in included if not is_valid_roi(it.roi) or not (WEIGHT_MIN <= it.weight <= WEIGHT_MAX)]
@@ -1340,6 +1377,10 @@ class ImageLookWorkspace(LutWorkspace):
         set_enabled_with_reason(self.analyze_button, self.analyze_reason_label, key, **kwargs)
         has_sel = bool(self.table.selectionModel().selectedRows()) or self.table.currentIndex().isValid()
         self.remove_button.setEnabled(has_sel and bool(self.model.items))
+        failed = len(self._failed_rows())
+        self.failed_row.setVisible(failed > 0)
+        if failed:
+            bind_text(self.remove_failed_button, "imagelook.remove_failed", n=failed)
         it = self.current_item()
         self.reset_roi_button.setEnabled(it is not None and not is_full(it.roi))
         self.use_target_as_base_button.setEnabled(self.preview.source is not None)

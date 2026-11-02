@@ -677,3 +677,99 @@ def test_engine_module_unavailable_is_explained(qtbot, win, gen):
     assert not ws.analyze_button.isEnabled()
     assert "not available" in ws.analyze_reason_label.text()
     assert not ws.export_button.isEnabled() and "not available" in ws.export_reason.text()
+
+
+# ------------------------------------------------------- unreadable images
+
+
+def _with_unreadable(qtbot, win, gen, tmp_path):
+    """Two readable references, a missing file and a file that is not an image."""
+    ws = ws_of(win)
+    broken = tmp_path / "broken.png"
+    broken.write_bytes(b"not an image")
+    ws.add_references([str(gen["warm"]), str(tmp_path / "gone.png"), str(gen["soft"]), str(broken)])
+    idle(qtbot, win)
+    return ws, broken
+
+
+def _states(ws):
+    return {Path(it.path).name: it.state for it in ws.model.items}
+
+
+def test_no_unreadable_image_no_commands(qtbot, win, gen):
+    ws = ws_of(win)
+    assert ws.failed_row.isHidden()
+    ws.add_references([str(gen["warm"]), str(gen["soft"])])
+    idle(qtbot, win)
+    assert ws.failed_row.isHidden() and ws.analyze_button.isEnabled()
+
+
+def test_reason_counts_every_unreadable_image(qtbot, win, gen, tmp_path):
+    ws, _broken = _with_unreadable(qtbot, win, gen, tmp_path)
+    assert not ws.analyze_button.isEnabled()
+    reason = ws.analyze_reason_label.text()
+    assert "2" in reason and "gone.png" in reason          # the count, and a name to start from
+    assert not ws.failed_row.isHidden()
+    assert "2" in ws.remove_failed_button.text()
+
+
+def test_remove_failed_keeps_readable_images_and_files_on_disk(qtbot, win, gen, tmp_path):
+    ws, broken = _with_unreadable(qtbot, win, gen, tmp_path)
+    ws.remove_failed_button.click()
+    idle(qtbot, win)
+    assert set(_states(ws)) == {"gen_warm.png", "gen_soft.png"}
+    assert ws.analyze_button.isEnabled() and ws.failed_row.isHidden()
+    assert broken.read_bytes() == b"not an image"          # only the row goes, never the file
+    assert gen["warm"].exists() and gen["soft"].exists()
+    last = next(e for e in reversed(win.ctx.log_model.entries) if e.key == "imagelook.log.removed")
+    assert last.kwargs["n"] == 2 and "gone.png" in last.detail and "broken.png" in last.detail
+
+
+def test_remove_failed_covers_excluded_rows_and_base_images(qtbot, win, gen, tmp_path):
+    ws = ws_of(win)
+    ws.add_references([str(gen["warm"]), str(tmp_path / "excluded.png")])
+    ws.add_references([str(tmp_path / "base.png")], role="base")
+    idle(qtbot, win)
+    ws.set_included(1, False)
+    assert "excluded.png" not in ws.analyze_reason_label.text()   # an excluded row does not block...
+    assert "2" in ws.remove_failed_button.text()                  # ...but can still be cleared away
+    ws.remove_failed_button.click()
+    idle(qtbot, win)
+    assert set(_states(ws)) == {"gen_warm.png"}
+
+
+def test_retry_reads_failed_images_again(qtbot, win, gen, tmp_path):
+    ws, broken = _with_unreadable(qtbot, win, gen, tmp_path)
+    assert _states(ws)["gone.png"] == "failed"
+    shutil.copy(gen["cool"], tmp_path / "gone.png")        # the file is back, the other one is still broken
+    ws.retry_failed_button.click()
+    idle(qtbot, win)
+    states = _states(ws)
+    assert states["gone.png"] == "ready" and states["broken.png"] == "failed"
+    assert states["gen_warm.png"] == "ready" and states["gen_soft.png"] == "ready"
+    assert next(it for it in ws.model.items if it.name == "gone.png").error is None
+    assert "1" in ws.remove_failed_button.text() and not ws.failed_row.isHidden()
+    broken.write_bytes((tmp_path / "gone.png").read_bytes())
+    ws.retry_failed_button.click()
+    idle(qtbot, win)
+    assert set(_states(ws).values()) == {"ready"}
+    assert ws.failed_row.isHidden() and ws.analyze_button.isEnabled()
+
+
+def test_one_unreadable_image_keeps_the_single_message(qtbot, win, gen, tmp_path):
+    from camera_profile_studio.gui.i18n import tr
+
+    ws = ws_of(win)
+    ws.add_references([str(gen["warm"]), str(tmp_path / "gone.png")])
+    idle(qtbot, win)
+    assert ws.analyze_reason_label.text() == tr("imagelook.reason.ref_failed", name="gone.png")
+
+
+def test_unreadable_commands_follow_the_language(qtbot, win, gen, tmp_path):
+    from camera_profile_studio.gui.i18n import T, tr
+
+    ws, _broken = _with_unreadable(qtbot, win, gen, tmp_path)
+    T.set_language("ja")
+    assert ws.remove_failed_button.text() == tr("imagelook.remove_failed", n=2)
+    assert "2" in ws.remove_failed_button.text() and "{n}" not in ws.remove_failed_button.text()
+    assert ws.remove_failed_button.accessibleName() == tr("imagelook.remove_failed", n=2)

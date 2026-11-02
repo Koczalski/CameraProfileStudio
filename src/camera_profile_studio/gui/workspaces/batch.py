@@ -42,7 +42,7 @@ from PySide6.QtWidgets import (
 from .. import icons
 from ..backend import FORMAT_FILES, GAMUTS, INTENTS, LOOK_MODES, LUT_SIZES, Unsupported
 from ..context import PROFILE_SUFFIXES
-from ..i18n import T, tr
+from ..i18n import T, bind_text, tr
 from ..jobs import ErrorInfo, JobState
 from ..widgets.common import (
     AdvancedSection,
@@ -95,6 +95,12 @@ class BatchItem:
         if self.blocker is not None:
             return "blocked" if self.blocker[0] == "blocked" else "needs_input"
         return "pending"
+
+    @property
+    def could_not_run(self) -> bool:
+        """Failed or cannot run as it is.  Not ``needs_input``: entering the setting makes that row
+        runnable, and until then every row can be in that state."""
+        return self.display_state() in ("failed", "unreadable", "blocked", "skipped")
 
 
 class BatchModel(QAbstractTableModel):
@@ -237,11 +243,13 @@ class BatchWorkspace(Workspace):
         row = QHBoxLayout()
         self.remove_button = make_button("batch.remove", "delete")
         self.clear_button = make_button("batch.clear", None)
+        self.remove_failed_button = make_button("batch.remove_failed", "delete")
         self.overall = QProgressBar(self.center)
         self.overall.setRange(0, 100)
         T.bind(self.overall, "setAccessibleName", "batch.progress")
         row.addWidget(self.remove_button)
         row.addWidget(self.clear_button)
+        row.addWidget(self.remove_failed_button)
         row.addStretch(1)
         self.center_layout.addLayout(row)
         self.overall.setMinimumWidth(80)
@@ -387,6 +395,7 @@ class BatchWorkspace(Workspace):
         self.cancel_button.clicked.connect(self.cancel)
         self.remove_button.clicked.connect(self._remove)
         self.clear_button.clicked.connect(self._clear)
+        self.remove_failed_button.clicked.connect(self._remove_failed)
         self.mode.currentIndexChanged.connect(lambda _i: self._update())
         for combo in (self.look_mode, self.direction, self.intent, self.gamut):
             combo.currentIndexChanged.connect(lambda _i: self._update())
@@ -540,6 +549,12 @@ class BatchWorkspace(Workspace):
     def _remove(self) -> None:
         rows = [i.row() for i in self.table.selectionModel().selectedRows()]
         self.model.remove_rows([r for r in rows if self.model.items[r].state not in ("queued", "running")])
+
+    def _remove_failed(self) -> None:
+        rows = [row for row, item in enumerate(self.model.items) if item.could_not_run]
+        if rows and not self.running():
+            self.model.remove_rows(rows)
+            self.ctx.log.info("log.batch.removed_failed", n=len(rows))
 
     def _clear(self) -> None:
         if not self.running():
@@ -778,6 +793,11 @@ class BatchWorkspace(Workspace):
         running = self.running()
         self.clear_button.setEnabled(bool(self.model.items) and not running)
         self.remove_button.setEnabled(bool(self.table.selectionModel().selectedRows()) and not running)
+        could_not_run = sum(1 for it in self.model.items if it.could_not_run)
+        self.remove_failed_button.setVisible(could_not_run > 0)
+        self.remove_failed_button.setEnabled(not running)
+        if could_not_run:
+            bind_text(self.remove_failed_button, "batch.remove_failed", n=could_not_run)
         is_look = self.mode.currentData() == "look"
         self.look_mode.setEnabled(is_look)
         self.direction.setEnabled(not is_look)

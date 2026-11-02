@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..context import PROFILE_SUFFIXES, ProfileEntry
-from ..i18n import T, tr
+from ..i18n import T, bind_text, tr
 from ..widgets.capabilities import CapabilityPanel, ComponentList
 from ..widgets.common import (
     SPACE_S,
@@ -53,12 +53,15 @@ class InspectorWorkspace(Workspace):
 
     def __init__(self, ctx, parent=None) -> None:
         super().__init__(ctx, parent)
+        self._removing_failed = False
         # Ctrl+O belongs to File > Open profiles (window-wide).  Giving this
         # button the same key made Ctrl+O ambiguous on this page.
         self.open_button = make_button("action.open_profiles", "folder_open", primary=True)
         self.remove_button = make_button("action.remove_profile", "delete")
+        self.remove_failed_button = make_button("action.remove_failed_profiles", "delete")
         self.add_command(self.open_button)
         self.add_command(self.remove_button)
+        self.add_command(self.remove_failed_button)
 
         self.drop = DropArea(PROFILE_SUFFIXES, "inspector.drop_hint", self.center)
         self.center_layout.addWidget(self.drop)
@@ -119,6 +122,11 @@ class InspectorWorkspace(Workspace):
         self.drop.browse_requested.connect(self.browse)
         self.drop.files_dropped.connect(self.open_paths)
         self.remove_button.clicked.connect(self.remove_selected)
+        self.remove_failed_button.clicked.connect(self.remove_failed)
+        ctx.profiles.dataChanged.connect(lambda *_: self._update_failed_button())
+        ctx.profiles.rowsInserted.connect(lambda *_: self._update_failed_button())
+        ctx.profiles.rowsRemoved.connect(lambda *_: self._update_failed_button())
+        self._update_failed_button()
         self.table.selectionModel().currentRowChanged.connect(self._row_changed)
         ctx.current_profile_changed.connect(self._show)
         ctx.profiles.dataChanged.connect(self._model_changed)
@@ -166,7 +174,52 @@ class InspectorWorkspace(Workspace):
             nxt = self.ctx.profiles.entry(min(row, self.ctx.profiles.rowCount() - 1))
             self.ctx.set_current_profile(nxt)
 
+    def _failed_rows(self) -> list[int]:
+        return [row for row, entry in enumerate(self.ctx.profiles.entries) if entry.state == "failed"]
+
+    def remove_failed(self) -> None:
+        """Take every profile that could not be read off the list (the files are left alone)."""
+        profiles, rows = self.ctx.profiles, self._failed_rows()
+        if not rows:
+            return
+        names = [profiles.entries[row].name for row in rows]
+        current = self.ctx.current_profile
+        # If the current profile leaves the list, the row that followed it takes over (as with the Remove button).
+        anchor = self._row_of_entry(current)
+        if anchor < 0:
+            anchor = self.table.currentIndex().row()
+        next_row = sum(1 for row in range(anchor) if row not in rows)
+        # Rows vanishing move the table's current row. That must not reach the other pages: they
+        # refill their settings when the current profile changes, even if it changes back.
+        self._removing_failed = True
+        try:
+            for row in reversed(rows):
+                profiles.remove(row)
+            target = current if self._row_of_entry(current) >= 0 else profiles.entry(min(next_row, profiles.rowCount() - 1))
+            selection = self.table.selectionModel()
+            if target is None:
+                selection.clear()
+            else:
+                selection.setCurrentIndex(profiles.index(self._row_of_entry(target), 0),
+                                          QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
+        finally:
+            self._removing_failed = False
+        self.ctx.set_current_profile(target)
+        self.ctx.log.info("log.profile.removed_failed", detail=", ".join(names), n=len(rows))
+
+    def _row_of_entry(self, entry: ProfileEntry | None) -> int:
+        """The row holding this very entry; opening a path again replaces the entry on its row."""
+        return next((row for row, e in enumerate(self.ctx.profiles.entries) if e is entry), -1)
+
+    def _update_failed_button(self) -> None:
+        failed = len(self._failed_rows())
+        self.remove_failed_button.setVisible(failed > 0)
+        if failed:
+            bind_text(self.remove_failed_button, "action.remove_failed_profiles", n=failed)
+
     def _row_changed(self, current, _previous) -> None:
+        if self._removing_failed:
+            return
         self.ctx.set_current_profile(self.ctx.profiles.entry(current.row()))
 
     def _model_changed(self, top_left, _bottom_right, _roles=()) -> None:
