@@ -96,8 +96,11 @@ Setup format.
 1. Build with `packaging/windows-launcher/Build-0.2.7.cmd` (fresh-source route).
    The build stops if the Qt source coverage, native boundary, camera-input or
    source-bundle checks fail.
-2. Publish the `Portable.zip`, `Setup.exe` and `Source.zip` produced by the build
-   together, unmodified. Do not remove `licenses/` or `third-party-source/` from
-   the payload.
+2. Publish the `Portable.zip`, `Setup.exe`, `Source.zip` and
+   `DELIVERY_SHA256SUMS.txt` produced by the build together, unmodified. Do not
+   remove `licenses/` or `third-party-source/` from the payload. Attach all four
+   to the GitHub release by hand: neither the build nor the workflow does it. A
+   release without `DELIVERY_SHA256SUMS.txt` cannot be installed through the
+   in-app update.
 3. If the third-party source archives are offered as a separate download, keep
    them available for as long as the binaries are offered.
