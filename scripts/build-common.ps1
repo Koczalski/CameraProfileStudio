@@ -22,6 +22,15 @@ function Save-CpsPhases([string]$Path) {
     ConvertTo-Json -InputObject @($script:CpsPhases) -Depth 3 | Set-Content -Encoding UTF8 -LiteralPath $Path
 }
 
+function Get-CpsVswhere {
+    # The fixed path of vswhere.exe. vcvars64.bat looks it up on PATH and a miss on stderr stops a script that runs with
+    # $ErrorActionPreference = 'Stop', so its folder also goes on PATH: of this process and its children only.
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    $folder = Split-Path $vswhere -Parent
+    if (($env:PATH -split ';') -notcontains $folder) { $env:PATH = $env:PATH + ';' + $folder }
+    return $vswhere
+}
+
 function Get-CpsCacheRoot {
     $root = $env:CPS_BUILD_CACHE
     if ([string]::IsNullOrWhiteSpace($root)) { return $null }

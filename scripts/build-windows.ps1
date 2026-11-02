@@ -42,7 +42,7 @@ Set-CpsPhase 'bootstrap'
 if (!$?) { throw 'Bootstrap failed' }
 Set-CpsPhase 'toolchain-and-licenses'
 # Import the existing MSVC toolchain into this process only.
-$vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+$vswhere = Get-CpsVswhere
 $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 if (!$vs) { throw 'MSVC x64 toolchain is required' }
 $vcvars = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'

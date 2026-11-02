@@ -12,8 +12,9 @@
   LUTs estimated to expect Log input are applied and carry a warning in all three places.
 - Source archive: the launcher's copy and `packaging/collect_source.py` leave out every `release-*` folder.
   The 0.2.6 build carried `release-0.2.5`, which also inflated Setup and Portable.
-- `scripts/build-lcms.ps1` no longer needs the Visual Studio Installer folder on `PATH`; it calls
-  `vswhere.exe` by its fixed path and adds the folder to `PATH` for its own process only.
+- `scripts/build-lcms.ps1` and `scripts/build-windows.ps1` no longer need the Visual Studio Installer folder
+  on `PATH`; they call `vswhere.exe` by its fixed path and add the folder to `PATH` for their own process only
+  (`Get-CpsVswhere` in `scripts/build-common.ps1`).
 
 ## What 0.2.6 changed
 
