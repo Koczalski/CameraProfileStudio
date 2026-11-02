@@ -1,21 +1,50 @@
-# CameraProfileStudio
+# Camera Profile Studio
 
-カメラプロファイル（ICC / DCP）や写真から 3D LUT を作る Windows 用ソフトです。
-個人の趣味で作っているため、Issue・PR への対応はあまりできません。
+English | [日本語](README.ja.md)
 
-## できること
+**[Download (Releases)](../../releases)**
 
-- プロファイルから LUT を作成（技術変換・カメラルック抽出）
-- お手本の写真からルックを作成（画像ルック作成）
-- 2 台のカメラの色合わせ（カメラマッチ）
-- 一括変換
-- 書き出し: .cube / Hald CLUT PNG / ストリップ PNG
+A Windows app that turns camera profiles (ICC / DCP) and photos into 3D LUTs. A personal hobby project.
 
-ダウンロードは [Releases](../../releases) から。Windows 10 / 11（64 bit）。
+## Key Features
 
-## 開発
+### 1. Technical Conversion
+* **Profile to LUT**: Bakes the colour processing of an ICC or DCP profile into a 3D LUT as is.
+* **Input and output**: Camera RGB, sRGB, linear sRGB or any ICC profile, with rendering intent and black point compensation.
 
-Python 3.12 / PySide6。
+### 2. Camera Look Extraction
+* **DCP looks**: Turns a camera's HueSatMap, LookTable and tone curve into an approximate look LUT.
+
+### 3. Image Look Creator
+* **From reference photos**: Analyses tone, colour cast and saturation of 1 to 64 photos and combines them into one look.
+* **Base images**: Add your own photos that the look will be applied to. The look is then estimated as the difference to them, which gets closer to the references.
+
+### 4. Camera Match
+* **Match two cameras**: Estimates a LUT that matches the colours of two photos of the same scene.
+* **Measured**: Shows the colour difference (ΔE00) before and after.
+
+### 5. Batch
+* **Many at once**: Converts many profiles in one run. Items that cannot be processed are listed with the reason before the run starts.
+
+### 6. Three Export Formats
+* **.cube / Hald CLUT PNG (16-bit) / strip PNG (8-bit)**: For photo and video software and game engines.
+* **Interpolation**: Preview and export use tetrahedral interpolation, so greys stay neutral.
+
+### 7. Preview
+* **Before and after**: Loads JPEG, PNG, TIFF and RAW and compares them in a split view. Embedded ICC profiles and EXIF orientation are applied.
+
+### 8. English / Japanese, Light / Dark
+* **Display**: Switch between English and Japanese, and between light and dark themes.
+
+## Technology Stack
+
+* **Language**: Python 3.12
+* **GUI**: PySide6 (Qt 6)
+* **Colour**: NumPy / SciPy / colour-science / LittleCMS 2 / OpenCV / LibRaw (rawpy)
+* **Build**: Nuitka / Inno Setup
+* **OS**: Windows 10 / 11 (64-bit)
+
+## Development
 
 ```
 py -3.12 -m venv .venv
@@ -24,21 +53,22 @@ pip install -e .[gui,raw,test]
 python -m camera_profile_studio.gui.app
 ```
 
-- LittleCMS（lcms2.dll）が必要です（`scripts\build-lcms.ps1`、または環境変数 `CPS_LCMS2_DLL`）。
-- テスト用のカメラプロファイルは同梱していません（[input/ccd_profiles/README.md](input/ccd_profiles/README.md)）。
-- exe のビルド: `packaging\windows-launcher\Build-0.2.5.cmd`
-- 詳しい説明: [README.ja.md](README.ja.md) / [English](docs/README.en.md)
+* LittleCMS (lcms2.dll) is required. Build it with `scripts\build-lcms.ps1` or point `CPS_LCMS2_DLL` to it.
+* The sample camera profiles used by the tests are not included ([input/ccd_profiles/README.md](input/ccd_profiles/README.md), Japanese).
+* Building the exe: `packaging\windows-launcher\Build-0.2.5.cmd`
+* Detailed documentation: [docs/README.en.md](docs/README.en.md)
 
-## ライセンス
+## Contribution & Feedback
 
-MIT License（[LICENSE](LICENSE)）。同梱ライブラリ（Qt / PySide6、LibRaw など）はそれぞれのライセンスです（[licenses/](licenses/)）。
+This is a hobby project, so I may not be able to respond to Issues or PRs. I do read them.
 
-## 免責事項
+## License
 
-無保証です。色は近似で、カメラやフィルムの正確な再現ではありません。
+[MIT License](LICENSE). Bundled libraries (Qt / PySide6, LibRaw and others) keep their own licenses ([licenses/](licenses/)).
+The software comes with no warranty. Colours are approximations, not exact reproductions of a camera or film.
 
-## 連絡先
+## Contact
 
 Discord: https://discord.com/users/618663163914878986
 
-<sub>開発には Anthropic の Claude を補助として使用しています。</sub>
+<sub>Developed with assistance from Anthropic's Claude.</sub>

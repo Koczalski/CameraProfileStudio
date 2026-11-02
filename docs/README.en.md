@@ -1,6 +1,6 @@
 # Camera Profile Studio
 
-[日本語](../README.ja.md)
+[日本語](DETAILS.ja.md)
 
 > **Source version 0.2.5** is 0.2.4 plus a new Image Look Creator engine (Oklab distribution matching;
 > optional *base* images, the user's own photos the look will be applied to; no more neutral-protection
