@@ -702,6 +702,10 @@ class Engine:
         return ImageData(rgb, str(data.source_path or path), int(rgb.shape[1]), int(rgb.shape[0]),
                          [(str(k), str(v)) for k, v in data.metadata], [str(w) for w in data.warnings], data)
 
+    def shrink_image(self, image: ImageData, max_side: int) -> ImageData:
+        """``image`` with its long side limited to ``max_side`` (never enlarged)."""
+        return self.image_view(self._mod("images").shrink_image(image.raw, max_side))
+
     def raw_recipe(self, use_camera_wb: bool = True, exposure_shift: float = 1.0,
                    user_wb: tuple[float, float, float, float] | None = None) -> Any:
         """Fixed RAW development recipe: camera WB, or explicit user WB
@@ -861,10 +865,12 @@ class Engine:
         return RepairView(self.loaded_view(result.lut, path=loaded.path), tuple(float(v) for v in result.change),
                           self.health_view(result.before), self.health_view(result.after), dict(settings))
 
-    def loaded_to_lutdata(self, loaded: LoadedLutView, size: int, token: CancelToken | None = None,
+    def loaded_to_lutdata(self, loaded: LoadedLutView, size: int | None, token: CancelToken | None = None,
                           progress: Callable[..., None] | None = None) -> LutData:
-        """Resample to 17/33/65 (tetrahedral) and clip, as an sRGB -> sRGB ``LutData`` for preview and export."""
-        if size not in LUT_SIZES:
+        """Resample to 17/33/65 (tetrahedral) and clip, as an sRGB -> sRGB ``LutData`` for preview and export.
+
+        ``size`` None takes the supported size nearest to the file's own grid."""
+        if size is not None and size not in LUT_SIZES:
             raise Unsupported("reason.bad_size")
         lut = self._mod("lut_health").to_lut3d(loaded.raw, size, context=self._context(token, progress))
         return self.lut_view(lut)

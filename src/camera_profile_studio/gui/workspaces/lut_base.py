@@ -158,6 +158,11 @@ class LutWorkspace(Workspace):
             form.addRow(self.check_button)
             form.addRow(self.check_reason)
             T.watch(box, self._update_check_button)
+        # send the LUT built here to LUT Compare (the tooltip says why when it cannot be sent)
+        self.compare_button = make_button("compare.action.add", "table")
+        self.compare_button.clicked.connect(self.send_to_compare)
+        form.addRow(self.compare_button)
+        T.watch(box, self._update_compare_button)
         return box
 
     def make_status_group(self) -> QGroupBox:
@@ -205,6 +210,31 @@ class LutWorkspace(Workspace):
         set_enabled_with_reason(button, self.check_reason, key, **kwargs)
         if key is None:
             button.setToolTip(tr("health.action.check_tip"))
+
+    # ---------------------------------------------------------- LUT Compare
+    def compare_reason_key(self) -> tuple[str, dict] | None:
+        """Why the LUT cannot be sent to LUT Compare now (None: it can)."""
+        if self.lut is not None:
+            reason = self.lut.preview_reason()
+            if reason is not None:
+                return (reason[0], {"kind": tr(f"space.{reason[1]['kind']}")})
+        reason = self.export_reason_key()
+        if reason is not None and reason[0] == "reason.exporting":
+            return None  # an export in progress does not prevent a comparison
+        return reason
+
+    def send_to_compare(self) -> None:
+        if self.lut is None or self.compare_reason_key() is not None:
+            return
+        self.ctx.send_to_compare(self.lut, self.key)
+
+    def _update_compare_button(self) -> None:
+        button = getattr(self, "compare_button", None)
+        if button is None:
+            return
+        reason = self.compare_reason_key()
+        button.setEnabled(reason is None)
+        button.setToolTip(tr(reason[0], **reason[1]) if reason else tr("compare.action.add_tip"))
 
     # --------------------------------------------------------------- hooks
     def build_precondition(self) -> tuple[str, dict] | None:
@@ -497,6 +527,7 @@ class LutWorkspace(Workspace):
         self.cancel_button.setEnabled(busy)
         self.domain_label.setText(self.domain_text())
         self._update_check_button()
+        self._update_compare_button()
 
 
 

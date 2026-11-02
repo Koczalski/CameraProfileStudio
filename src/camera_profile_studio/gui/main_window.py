@@ -34,6 +34,7 @@ from .widgets.log_panel import BottomPanel
 from .widgets.update_dialog import UpdateBar
 from .workspaces.base import Workspace
 from .workspaces.batch import BatchWorkspace
+from .workspaces.compare import CompareWorkspace
 from .workspaces.converter import ConverterWorkspace
 from .workspaces.diagnose import DiagnoseWorkspace
 from .workspaces.image_look import ImageLookWorkspace
@@ -43,7 +44,7 @@ from .workspaces.match import MatchWorkspace
 from .workspaces.settings import SettingsWorkspace
 
 WORKSPACES = (InspectorWorkspace, ConverterWorkspace, LookWorkspace, MatchWorkspace, BatchWorkspace, SettingsWorkspace,
-              ImageLookWorkspace, DiagnoseWorkspace)
+              ImageLookWorkspace, DiagnoseWorkspace, CompareWorkspace)
 
 
 class NavigationView(QListView):

@@ -290,6 +290,18 @@ def _load_raster(path: Path, context: JobContext | None) -> tuple[np.ndarray, di
     return rgb, metadata, warnings
 
 
+def shrink_image(image: ImageData, max_dimension: int) -> ImageData:
+    """``image`` with its long side limited to ``max_dimension`` (never enlarged)."""
+    rgb = image.rgb
+    if max(rgb.shape[:2]) <= max_dimension:
+        return image
+    scale = max_dimension / max(rgb.shape[:2])
+    target = (max(1, round(rgb.shape[1] * scale)), max(1, round(rgb.shape[0] * scale)))
+    # AREA is a convex average; its float32 accumulator can overshoot white by a few ULPs.
+    small = np.clip(cv2.resize(rgb, target, interpolation=cv2.INTER_AREA), 0, 1)
+    return ImageData(small, image.source_path, image.metadata, image.warnings)
+
+
 def render_preview(image: ImageData, lut: Lut3D, *, context: JobContext | None = None) -> ImageData:
     checkpoint(context, stage='render_preview', fraction=0)
     if lut.input_space != SpaceSpec('srgb'):

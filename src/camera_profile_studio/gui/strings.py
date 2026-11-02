@@ -1072,6 +1072,13 @@ assert not _clash, sorted(_clash)  # in-app update keys must not shadow existing
 EN.update(_UPDATE_EN)
 JA.update(_UPDATE_JA)
 
+from .strings_compare import EN as _COMPARE_EN, JA as _COMPARE_JA  # noqa: E402
+
+_clash = (set(EN) & set(_COMPARE_EN)) | (set(JA) & set(_COMPARE_JA))
+assert not _clash, sorted(_clash)  # LUT Compare keys must not shadow existing ones
+EN.update(_COMPARE_EN)
+JA.update(_COMPARE_JA)
+
 STRINGS = {"en": EN, "ja": JA}
 
 

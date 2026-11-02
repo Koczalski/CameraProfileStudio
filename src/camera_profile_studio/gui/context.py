@@ -164,6 +164,7 @@ class AppContext(QObject):
     status_message = Signal(str)
     navigate = Signal(str)
     lut_for_diagnosis = Signal(object, str)  # LutData, key of the sending page
+    lut_for_compare = Signal(object, str)  # LutData, key of the sending page
 
     def __init__(self, engine: Engine, settings: QSettings, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -279,6 +280,24 @@ class AppContext(QObject):
         if file:
             self.remember_dir("luts", file)
         return file
+
+    def ask_images(self, title_key: str) -> list[str]:
+        files, _ = QFileDialog.getOpenFileNames(self.window, tr(title_key), self.last_dir("images"), tr("filter.images"))
+        if files:
+            self.remember_dir("images", files[0])
+        return files
+
+    def ask_luts(self, title_key: str) -> list[str]:
+        files, _ = QFileDialog.getOpenFileNames(self.window, tr(title_key), self.last_dir("luts"), tr("health.filter.lut"))
+        if files:
+            self.remember_dir("luts", files[0])
+        return files
+
+    # ------------------------------------------------------------ LUT Compare hand-over
+    def send_to_compare(self, lut: LutData, page_key: str) -> None:
+        """Hand ``lut`` (built on page ``page_key``) to LUT Compare and show that page."""
+        self.lut_for_compare.emit(lut, page_key)
+        self.navigate.emit("compare")
 
     # ------------------------------------------------------------ LUT Check hand-over
     DIAGNOSIS_KEEP = 3  # LUTs kept for "open in LUT Check" log entries (older ones are released)

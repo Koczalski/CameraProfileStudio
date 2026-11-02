@@ -146,8 +146,8 @@ def test_seventh_workspace_is_appended_and_existing_shortcuts_kept(win):
     from camera_profile_studio.gui.main_window import WORKSPACES
 
     keys = [c.key for c in WORKSPACES]
-    assert keys == ["inspector", "converter", "look", "match", "batch", "settings", "imagelook", "diagnose"]
-    assert [a.shortcut().toString() for a in win.ws_actions] == [f"Ctrl+{i}" for i in range(1, 9)]
+    assert keys == ["inspector", "converter", "look", "match", "batch", "settings", "imagelook", "diagnose", "compare"]
+    assert [a.shortcut().toString() for a in win.ws_actions] == [f"Ctrl+{i}" for i in range(1, 10)]
     assert win.nav.nav_model.item(6).data(Qt.ItemDataRole.UserRole) == "imagelook"
     assert not win.nav.nav_model.item(6).icon().isNull()
     win.ws_actions[6].trigger()
