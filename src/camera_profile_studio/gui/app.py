@@ -107,6 +107,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     acquire_app_mutex()   # the named mutex Inno Setup (AppMutex) looks for before upgrading in place
     window = MainWindow()
+    from .session_log import start_from_env
+
+    start_from_env(window)   # only when CPS_SESSION_LOG names a folder (TestRun.bat sets it)
     window.show()
     window.ctx.updates.schedule_auto_check()
     paths = [a for a in (argv if argv is not None else sys.argv)[1:] if not a.startswith("-")]
