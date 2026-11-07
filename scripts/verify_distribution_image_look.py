@@ -21,13 +21,18 @@ reference = sandbox / 'image-look-reference.png'
 Image.fromarray(image).save(reference)
 reference2 = sandbox / 'image-look-reference-2.png'
 Image.fromarray(np.roll(image, 13, axis=0)).save(reference2)
-# A flatter, darker, less colourful "own photo" the look would be applied to (role "base").
+# The user's own photo the look would be applied to (role "base"): the same scene before the look, flatter,
+# darker and less colourful.  Since 0.3.0-alpha.1 a base photo of a different scene would (rightly) give no look,
+# because the difference between unrelated scenes is mostly scene content; a same-scene partner is taken at face value.
+flatten = lambda rgb: np.clip(32 + 0.62 * (rgb.astype(np.float64) - 32), 0, 255).astype(np.uint8)
 base = sandbox / 'image-look-base.png'
-Image.fromarray(np.clip(32 + 0.62 * (np.roll(image, 29, axis=1).astype(np.float64) - 32), 0, 255).astype(np.uint8)).save(base)
+Image.fromarray(flatten(image)).save(base)
+base2 = sandbox / 'image-look-base-2.png'            # the "before" of the second reference, too
+Image.fromarray(flatten(np.roll(image, 13, axis=0))).save(base2)
 # (case, [(file, role)]): "role" is optional and defaults to "reference"; the base case is explicit.
 for case, entries in (('single', [(reference, None)]),
                       ('multiple', [(reference, None), (reference2, None)]),
-                      ('base', [(reference, 'reference'), (reference2, 'reference'), (base, 'base')])):
+                      ('base', [(reference, 'reference'), (reference2, 'reference'), (base, 'base'), (base2, 'base')])):
     references = [item for item, _ in entries]
     base_count = sum(1 for _, role in entries if role == 'base')
     request = sandbox / f'image-look-{case}-request.json'
