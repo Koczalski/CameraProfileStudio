@@ -323,6 +323,8 @@ def test_conflicting_references_need_explicit_acknowledgement(qtbot, win, gen):
     assert ws.analysis.conflicts  # e.g. conflicting_tone
     assert ws.lut is None and not ws.export_button.isEnabled()
     assert "Conflicting references" in ws.export_reason.text()
+    assert "weight" in ws.export_reason.text()  # says what happens next, not just "refused"
+    assert "weight" in ws.ack.text() and "weight" in ws.conflict_label.text()
     assert ws.conflict_label.isVisible() and ws.ack.isVisible() and not ws.ack.isChecked()
     ws.ack.setChecked(True)
     idle(qtbot, win)
@@ -332,6 +334,47 @@ def test_conflicting_references_need_explicit_acknowledgement(qtbot, win, gen):
     # changing the selection drops the acknowledgement and the LUT
     ws.set_weight(1, 3.0)
     assert not ws.ack.isChecked() and ws.lut is None and not ws.export_button.isEnabled()
+
+
+def test_image_look_page_points_to_camera_match_for_paired_data(win):
+    ws = ws_of(win)
+    assert ws.match_hint.isVisible() and "Camera Match Studio" in ws.match_hint.text()
+    assert "same-scene" in ws.match_hint.text()
+
+
+def test_ratio_slider_reweights_and_rebuilds_without_reanalysing(qtbot, win, gen, monkeypatch):
+    ws = analysed(qtbot, win, [gen["warm"], gen["soft"]], target=gen["base"])
+    assert ws.lut is not None and ws.ratio_slider.isVisible() and ws.ratio_slider.value() == 50
+    analyses = []
+    original = win.ctx.engine.analyze_image_look
+    monkeypatch.setattr(win.ctx.engine, "analyze_image_look", lambda *a, **k: analyses.append(1) or original(*a, **k))
+    before = ws.lut
+    ws.ratio_slider.setValue(75)
+    idle(qtbot, win)
+    assert not analyses                                    # statistics are kept; only the fit and the LUT are redone
+    assert [it.weight for it in ws.model.items] == [0.75, 0.25]
+    assert [ws.model.data(ws.model.index(r, ws.model.COL_SHARE)) for r in (0, 1)] == ["75%", "25%"]
+    assert ws.model.items[0].stats is not None and ws.analysis is not None
+    assert ws.lut is not None and ws.lut is not before and ws.export_button.isEnabled()
+    weights = [r["weight"] for r in json.loads(dict(ws.lut.provenance)["references"])]
+    assert sorted(weights) == [0.25, 0.75]
+    # the weights reach the fit: the pooled reference statistics changed (the look itself may stay shrunk to nothing
+    # when two references alone say too little)
+    assert dict(ws.lut.provenance)["pooled_reference"] != dict(before.provenance)["pooled_reference"]
+
+
+def test_equal_weights_button_and_slider_visibility(qtbot, win, gen):
+    ws = analysed(qtbot, win, [gen["warm"], gen["soft"]], target=gen["base"])
+    ws.ratio_slider.setValue(30)
+    idle(qtbot, win)
+    assert ws.equal_button.isEnabled()
+    ws.equal_button.click()
+    idle(qtbot, win)
+    assert [it.weight for it in ws.model.items] == [1.0, 1.0] and ws.ratio_slider.value() == 50
+    assert not ws.equal_button.isEnabled() and ws.lut is not None
+    ws.add_references([str(gen["high"])])                  # three references: the weight column only
+    idle(qtbot, win)
+    assert not ws.ratio_slider.isVisible()
 
 
 def test_invalid_missing_and_unsupported_references(qtbot, win, tmp_path, gen):

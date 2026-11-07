@@ -144,6 +144,7 @@ class ReferencesModel(QAbstractTableModel):
                "imagelook.col.crop", "imagelook.col.status")
     COL_IMAGE, COL_ROLE, COL_WEIGHT, COL_SHARE, COL_CROP, COL_STATUS = range(6)
     edited = Signal()  # user changed inclusion, role or weight
+    reweighted = Signal()  # weights changed through apply_weights (the analysis stays valid)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -206,6 +207,21 @@ class ReferencesModel(QAbstractTableModel):
 
     def set_weight(self, row: int, weight: float) -> bool:
         return self.setData(self.index(row, self.COL_WEIGHT), weight, Qt.ItemDataRole.EditRole)
+
+    def apply_weights(self, weights: dict[int, float]) -> bool:
+        """Set several weights at once and emit ``reweighted`` (not ``edited``): used by the
+        ratio slider and the equal-weights button, which keep the analysis.  False if a value is invalid."""
+        new = {row: round(float(w), 4) for row, w in weights.items() if 0 <= row < len(self.items)}
+        if any(not math.isfinite(w) or w < WEIGHT_MIN or w > WEIGHT_MAX for w in new.values()):
+            return False
+        changed = {row: w for row, w in new.items() if w != self.items[row].weight}
+        for row, w in changed.items():
+            self.items[row].weight = w
+        if changed:
+            self.dataChanged.emit(self.index(min(changed), self.COL_WEIGHT), self.index(max(changed), self.COL_WEIGHT))
+            self.refresh_shares()
+            self.reweighted.emit()
+        return True
 
     def set_included(self, row: int, on: bool) -> bool:
         state = Qt.CheckState.Checked if on else Qt.CheckState.Unchecked
@@ -542,9 +558,32 @@ class ImageLookWorkspace(LutWorkspace):
         # own row: three commands plus the longer count text do not fit side by side in the narrow centre column
         self.count_label = WrapLabel("", parent=refs_pane)
         rl.addWidget(self.count_label)
+        # two or more references: mix ratio of the first two (slider) and back to equal weights
+        self.ratio_row = QWidget(refs_pane)
+        rr = QVBoxLayout(self.ratio_row)
+        rr.setContentsMargins(0, 0, 0, 0)
+        rr.setSpacing(SPACE_XS)
+        self.ratio_label = WrapLabel("", secondary=True, parent=self.ratio_row)
+        rr.addWidget(self.ratio_label)
+        ratio_bar = QHBoxLayout()
+        ratio_bar.setSpacing(SPACE_S)
+        self.ratio_slider = QSlider(Qt.Orientation.Horizontal, self.ratio_row)
+        self.ratio_slider.setRange(0, 100)
+        self.ratio_slider.setValue(50)
+        T.bind(self.ratio_slider, "setAccessibleName", "imagelook.ratio.slider")
+        self.equal_button = make_button("imagelook.weights.equal")
+        ratio_bar.addWidget(self.ratio_slider, 1)
+        ratio_bar.addWidget(self.equal_button)
+        rr.addLayout(ratio_bar)
+        self.ratio_row.setVisible(False)
+        self._ratio_driving = False
+        rl.addWidget(self.ratio_row)
         # shown while references exist but no base image does: the typical-photo baseline is much less accurate
         self.base_hint = WrapLabel("imagelook.base_recommend", secondary=True, parent=refs_pane)
         rl.addWidget(self.base_hint)
+        # the other route for people who have corresponding data
+        self.match_hint = WrapLabel("imagelook.match_hint", secondary=True, parent=refs_pane)
+        rl.addWidget(self.match_hint)
         self.hsplit = QSplitter(Qt.Orientation.Horizontal, refs_pane)
         self.hsplit.setObjectName("imagelook_hsplit")
         self.hsplit.setChildrenCollapsible(False)
@@ -748,6 +787,9 @@ class ImageLookWorkspace(LutWorkspace):
         self.table.selectionModel().currentRowChanged.connect(lambda _c, _p: self._selection_changed())
         self.table.selectionModel().selectionChanged.connect(lambda _s, _d: self._update_state())
         self.model.edited.connect(self._references_changed)
+        self.model.reweighted.connect(self._weights_changed)
+        self.ratio_slider.valueChanged.connect(self._ratio_changed)
+        self.equal_button.clicked.connect(self.reset_weights)
         self.roi.roi_changed.connect(self._roi_committed)
         self.roi.roi_editing.connect(self._sync_roi_spins)
         self.reset_roi_button.clicked.connect(self.reset_crop)
@@ -1119,6 +1161,61 @@ class ImageLookWorkspace(LutWorkspace):
     def _analysis_settings_changed(self) -> None:
         self._invalidate_analysis()
 
+    # ------------------------------------------------- mix ratio / weights
+    def _ratio_changed(self, value: int) -> None:
+        """Slider = share of the first of the two included references (0 keeps the weight floor, not zero)."""
+        refs = self.model.included("reference")
+        if len(refs) != 2:
+            return
+        a, b = refs
+        self._ratio_driving = True
+        try:
+            self.model.apply_weights({self.model.row_of(a.uid): max(value / 100.0, WEIGHT_MIN),
+                                      self.model.row_of(b.uid): max(1.0 - value / 100.0, WEIGHT_MIN)})
+        finally:
+            self._ratio_driving = False
+
+    def reset_weights(self) -> None:
+        self.model.apply_weights({row: 1.0 for row in range(len(self.model.items))})
+
+    def _weights_changed(self) -> None:
+        """New weights: keep the analysis (statistics do not depend on them) and only refit and rebuild
+        the LUT through the usual debounced path.  Without a current analysis there is nothing to keep."""
+        if self.analysis is None or self._analysis_sig is None or self.ctx.jobs.is_busy("imagelook:analyze"):
+            self._references_changed()
+            return
+
+        def key(path, roi, role):
+            return (_norm_path(path).lower(), tuple(round(float(v), 4) for v in roi), role)
+
+        current = {key(it.path, it.roi, it.role): it.weight for it in self.model.included()}
+        wanted = [current.get(key(s.path, s.roi, s.role)) for s in self.analysis.references]
+        if None in wanted:
+            self._references_changed()
+            return
+        self.analysis = self.ctx.engine.reweight_image_look(self.analysis, wanted)
+        self._analysis_sig = self.request_signature()
+        self._attach_stats(self.analysis)
+        self._render_all()
+        self.settings_changed()  # drops the LUT and starts the debounced rebuild
+
+    def _sync_ratio(self) -> None:
+        refs = self.model.included("reference")
+        two = len(refs) == 2
+        self.ratio_row.setVisible(len(refs) >= 2)
+        self.ratio_slider.setVisible(two)
+        self.ratio_label.setVisible(two)
+        self.equal_button.setEnabled(any(it.weight != 1.0 for it in self.model.items))
+        if not two:
+            return
+        a, b = refs
+        pa, pb = round((self.model.share(a) or 0) * 100), round((self.model.share(b) or 0) * 100)
+        self.ratio_label.setText(tr("imagelook.ratio.label", a=a.name, b=b.name, pa=pa, pb=pb))
+        if not self._ratio_driving and self.ratio_slider.value() != pa:
+            self.ratio_slider.blockSignals(True)
+            self.ratio_slider.setValue(pa)
+            self.ratio_slider.blockSignals(False)
+
     def _invalidate_analysis(self) -> None:
         """Any reference, crop, weight, inclusion or analysis-setting change:
         drop the analysis (and any in-flight one), the model and the LUT."""
@@ -1386,6 +1483,7 @@ class ImageLookWorkspace(LutWorkspace):
         self.use_target_as_base_button.setEnabled(self.preview.source is not None)
         self._render_count()
         self._update_base_hint()
+        self._sync_ratio()
 
     def _update_base_hint(self) -> None:
         if not hasattr(self, "base_hint"):
