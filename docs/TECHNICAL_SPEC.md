@@ -222,6 +222,21 @@ Design notes: [MATCHING_IMPLEMENTATION.md](MATCHING_IMPLEMENTATION.md).
 - Report: holdout ΔE00 before and after (count, mean, median, p95, max), plus
   indices and warnings. A single-scene or chart holdout does not establish
   cross-scene camera accuracy.
+- Per-sample errors (`matching.patch_errors`): for every sample and every
+  stage (`before`, `ccm`, `tone`, `residual`, and `baked` for the exported grid
+  LUT) the ΔE00 and the signed CIELAB ΔL*, ΔC*ab, ΔH*ab (prediction minus
+  target; ΔH* positive when the prediction's hue angle is counter-clockwise of
+  the target's). Rows are marked train / holdout / unused. Evaluation only;
+  nothing feeds back into the fit. `patch_errors_text` writes it as CSV or JSON.
+- Bake error (`lut.bake_error`): ΔE00 between an exported grid LUT (sampled
+  tetrahedrally) and the transform it was baked from, on 30000 uniform
+  pseudo-random points (fixed seed) and on given points such as the holdout
+  inputs. It measures the grid at 17/33/65, not the fit, and is defined only for
+  sRGB-output LUTs. The holdout ΔE00 above is computed from the model, not from
+  the baked LUT; this value is the difference. The Camera Match page records it
+  in the export sidecar as `bake_error` (per size: `size`, `strength`, and
+  `count`/`mean`/`median`/`p95`/`maximum` for `uniform` and `points`), the same
+  shape as the CLI output.
 - The export LUT is generated from the match transform through the shared LUT
   path.
 - Tests: `tests/test_matching.py` and `tests/test_matching_diagnostics.py` give
@@ -314,8 +329,10 @@ Outputs and errors:
   (`source_output_collision`), and refuses existing outputs without
   `--overwrite` (`output_exists`).
 - On success, stdout gets `{"schema_version": 1, "export": ...}`, plus
-  `holdout_report` for `match`. On error, stderr gets
-  `{code, message, details}`.
+  `holdout_report` and `bake_error` (per 17/33/65) for `match`; `match
+  --patch-report OUT` also writes the per-sample table (CSV for a `.csv`
+  name, JSON otherwise) and reports it as `patch_report`. On error, stderr
+  gets `{code, message, details}`.
 - Exit-code mapping in code: `DependencyError`, `ExportError`, `ImageError` and
   codes ending in `_io` map to 3; other `StudioError` to 2; `OSError` to 3;
   cancellation or Ctrl+C to 130.

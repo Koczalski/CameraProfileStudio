@@ -83,6 +83,16 @@ class MatchModel(_Record):
 @dataclass(frozen=True, slots=True)
 class AlignmentResult(_Record):
     source_aligned: RGB; target_rgb: RGB; valid_mask: Mask; homography: Matrix; inlier_fraction: float
+@dataclass(frozen=True, slots=True)
+class PatchErrors(_Record):
+    """Per-sample errors of a match, one row per sample and one layer per stage (``stages`` names them).
+    ``delta_l``/``delta_c``/``delta_h`` are signed CIELAB differences, prediction minus target."""
+    stages: tuple[str, ...]; indices: Indices; groups: tuple[str, ...]; train: Mask; holdout: Mask; source_rgb: RGB; target_rgb: RGB; predicted_rgb: RGB; delta_e00: Matrix; delta_l: Matrix; delta_c: Matrix; delta_h: Matrix
+@dataclass(frozen=True, slots=True)
+class BakeError(_Record):
+    """dE00 between an exported grid LUT and the transform it was baked from: on uniform pseudo-random
+    points of the unit cube (``uniform``) and, when given, on the caller's points."""
+    size: int; strength: float; uniform: ErrorStats; points: ErrorStats | None = None
 
 
 def _fail(message: str) -> None:

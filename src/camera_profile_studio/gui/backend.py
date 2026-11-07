@@ -24,7 +24,7 @@ from __future__ import annotations
 import csv
 import importlib
 import inspect
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -186,6 +186,9 @@ class MatchOutcome:
     holdout_count: int
     warnings: list[str]
     evidence: str
+    samples: Any = None   # engine SamplePairs the model was fitted on (kept for the per-patch table)
+    patches: Any = None   # engine PatchErrors for the current LUT (the "baked" stage is that LUT)
+    bake: dict[int, dict[str, Any]] = field(default_factory=dict)   # size -> bake error of the LUT at that size
 
 
 @dataclass
@@ -953,18 +956,42 @@ class Engine:
         try:
             lut = lut_mod.generate_lut(transform, size=size, strength=float(strength),
                                        title="Camera Profile Studio match", context=ctx)
+            patches, bake = self._match_diagnostics(samples, model, transform, lut, float(strength), ctx)
         finally:
             close = getattr(transform, "close", None)
             if close:
                 close()
         rep = model.report
-
-        def stats(e: Any) -> dict[str, float]:
-            return {"count": e.count, "mean": e.mean, "median": e.median, "p95": e.p95, "max": e.maximum}
-
-        return MatchOutcome(model, self.lut_view(lut), stats(rep.before), stats(rep.after),
+        return MatchOutcome(model, self.lut_view(lut), _stats(rep.before), _stats(rep.after),
                             int(len(rep.train_indices)), int(len(rep.holdout_indices)),
-                            [str(w) for w in rep.warnings], str(model.evidence))
+                            [str(w) for w in rep.warnings], str(model.evidence), samples, patches, bake)
+
+    def match_diagnostics(self, samples: Any, model: Any, lut: LutData, strength: float,
+                          token: CancelToken) -> tuple[Any, dict[int, dict[str, Any]]]:
+        """Per-patch errors for ``lut`` (its "baked" stage) and the bake error at every grid size."""
+        transform = self._mod("matching").create_match_transform(model)
+        try:
+            return self._match_diagnostics(samples, model, transform, lut.raw, float(strength), self._context(token, None))
+        finally:
+            transform.close()
+
+    def _match_diagnostics(self, samples: Any, model: Any, transform: Any, lut: Any, strength: float,
+                           ctx: Any) -> tuple[Any, dict[int, dict[str, Any]]]:
+        matching, lut_mod = self._mod("matching"), self._mod("lut")
+        patches = matching.patch_errors(samples, model, lut=lut, context=ctx)
+        held = np.asarray(samples.source_rgb)[np.asarray(model.report.holdout_indices)]
+        bake: dict[int, dict[str, Any]] = {}
+        for size in LUT_SIZES:
+            grid = lut if size == int(lut.values.shape[0]) else lut_mod.generate_lut(
+                transform, size=size, strength=strength, title="Camera Profile Studio match", context=ctx)
+            error = lut_mod.bake_error(transform, grid, points=held, context=ctx)
+            bake[size] = {"size": int(error.size), "strength": float(error.strength),
+                          "uniform": _stats(error.uniform), "points": _stats(error.points)}
+        return patches, bake
+
+    def patch_errors_text(self, patches: Any, kind: str) -> str:
+        """The per-patch table as CSV (``kind='csv'``) or JSON text."""
+        return str(self._mod("matching").patch_errors_text(patches, kind))
 
     # -- image look creator (reference statistics vs. base statistics) ---------
     def image_look_status(self) -> str:
@@ -1000,6 +1027,16 @@ class Engine:
         s = il.ImageLookSettings(**settings)
         analysis = il.analyze_image_look(refs, settings=s, context=self._context(token, progress))
         return self.image_look_view(analysis)
+
+    def reweight_image_look(self, analysis: ImageLookAnalysisView, weights: list[float]) -> ImageLookAnalysisView:
+        """The same analysis with new reference weights (one per ``analysis.references`` entry, same order).
+
+        Statistics and conflicts do not depend on the weights, so nothing is read or measured again;
+        the weights only act when ``fit_image_look`` pools the statistics.
+        """
+        records = tuple(replace(r, reference=replace(r.reference, weight=float(w)))
+                        for r, w in zip(analysis.raw.references, weights, strict=True))
+        return self.image_look_view(replace(analysis.raw, references=records))
 
     def image_look_view(self, analysis: Any) -> ImageLookAnalysisView:
         refs = []
@@ -1059,6 +1096,12 @@ class Engine:
             if close:
                 close()
         return self.lut_view(lut)
+
+
+def _stats(e: Any) -> dict[str, float]:
+    """Engine ``ErrorStats`` as the plain dict the pages and the sidecar use."""
+    return {"count": int(e.count), "mean": float(e.mean), "median": float(e.median), "p95": float(e.p95),
+            "max": float(e.maximum)}
 
 
 def to_qimage(array: np.ndarray):

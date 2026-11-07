@@ -274,3 +274,101 @@ def test_matching_shared_lut_export_and_preview_contract(size, tmp_path):
         assert np.mean(np.abs(rendered - transform.apply(samples.source_rgb))) < 0.003
     finally:
         transform.close()
+
+
+# ----------------------------------------------------------- per-patch errors
+
+
+def test_patch_errors_match_the_report_and_split_into_signed_components():
+    from camera_profile_studio.color import srgb_to_lab
+    from camera_profile_studio.matching import patch_errors
+
+    samples = references(1800, nonlinear=True)
+    model = fit_match(samples, settings=MatchSettings(grid_size=5))
+    errors = patch_errors(samples, model)
+    n = len(samples.source_rgb)
+    assert errors.stages == ('before', 'ccm', 'tone', 'residual')
+    assert errors.indices.tolist() == list(range(n)) and len(errors.groups) == n
+    assert errors.groups[:12] == samples.groups[:12]
+    assert errors.predicted_rgb.shape == (4, n, 3)
+    for array in (errors.delta_e00, errors.delta_l, errors.delta_c, errors.delta_h):
+        assert array.shape == (4, n) and np.isfinite(array).all() and not array.flags.writeable
+    train, hold = errors.train, errors.holdout
+    assert train.sum() == len(model.report.train_indices) and hold.sum() == len(model.report.holdout_indices)
+    assert not np.any(train & hold)
+    # the first stage is the identity and reproduces "before"; the last one is apply_match and reproduces "after"
+    np.testing.assert_array_equal(errors.predicted_rgb[0], np.asarray(samples.source_rgb, dtype=np.float32))
+    np.testing.assert_allclose(errors.predicted_rgb[-1], apply_match(samples.source_rgb, model), atol=1e-6)
+    assert np.isclose(errors.delta_e00[0][hold].mean(), model.report.before.mean)
+    assert np.isclose(errors.delta_e00[-1][hold].mean(), model.report.after.mean)
+    assert np.isclose(errors.delta_e00[-1][hold].max(), model.report.after.maximum)
+    # signed CIELAB components (predicted minus target): dL^2 + dC^2 + dH^2 = dE76^2, independent of the engine
+    lab_target, lab_predicted = srgb_to_lab(samples.target_rgb), srgb_to_lab(errors.predicted_rgb[-1])
+    np.testing.assert_allclose(errors.delta_l[-1], lab_predicted[:, 0] - lab_target[:, 0], atol=1e-9)
+    chroma = lambda lab: np.hypot(lab[:, 1], lab[:, 2])  # noqa: E731
+    np.testing.assert_allclose(errors.delta_c[-1], chroma(lab_predicted) - chroma(lab_target), atol=1e-9)
+    de76 = np.linalg.norm(lab_predicted - lab_target, axis=1)
+    np.testing.assert_allclose(np.sqrt(errors.delta_l[-1] ** 2 + errors.delta_c[-1] ** 2 + errors.delta_h[-1] ** 2),
+                               de76, atol=1e-6)
+    # the hue component is positive when the prediction's hue angle is counter-clockwise of the target's
+    # (checked on the "before" stage, where the hue errors are large enough to have a clear sign)
+    hue = lambda lab: np.arctan2(lab[:, 2], lab[:, 1])  # noqa: E731
+    lab_before = srgb_to_lab(samples.source_rgb)
+    turn = (hue(lab_before) - hue(lab_target) + np.pi) % (2 * np.pi) - np.pi
+    clear = np.abs(errors.delta_h[0]) > 0.5
+    assert clear.sum() > 50
+    np.testing.assert_array_equal(np.sign(errors.delta_h[0][clear]), np.sign(turn[clear]))
+
+
+def test_patch_errors_stages_collapse_for_simpler_fits_and_the_baked_stage_uses_the_lut():
+    from camera_profile_studio.lut import generate_lut, sample_lut
+    from camera_profile_studio.matching import patch_errors
+
+    samples = references()
+    model = fit_match(samples, settings=MatchSettings(fit='ccm', regularization=0.001))
+    errors = patch_errors(samples, model)
+    np.testing.assert_allclose(errors.predicted_rgb[1], errors.predicted_rgb[2], atol=1e-6)   # identity tone
+    np.testing.assert_allclose(errors.predicted_rgb[2], errors.predicted_rgb[3], atol=1e-6)   # zero residual
+    lut = generate_lut(create_match_transform(model), size=17)
+    baked = patch_errors(samples, model, lut=lut)
+    assert baked.stages == ('before', 'ccm', 'tone', 'residual', 'baked')
+    np.testing.assert_array_equal(baked.predicted_rgb[:4], errors.predicted_rgb)
+    np.testing.assert_allclose(baked.predicted_rgb[4], sample_lut(lut, samples.source_rgb), atol=1e-6)
+    assert baked.delta_e00[4][baked.holdout].mean() > 0
+
+
+class _LinearOut:
+    input_space = SpaceSpec('srgb')
+    output_space = SpaceSpec('linear_srgb')
+
+    def apply(self, rgb, *, context=None):
+        return np.asarray(rgb, dtype=np.float32) ** 2.2
+
+    def close(self):
+        pass
+
+
+def test_patch_errors_reject_foreign_samples_and_luts():
+    from camera_profile_studio.lut import generate_lut
+    from camera_profile_studio.matching import patch_errors
+
+    samples = references()
+    model = fit_match(samples, settings=MatchSettings(fit='ccm'))
+    shorter = replace(samples, source_rgb=samples.source_rgb[:100], target_rgb=samples.target_rgb[:100],
+                      groups=samples.groups[:100])
+    with pytest.raises(ValidationError):
+        patch_errors(shorter, model)                                   # the model's indices point past these rows
+    with pytest.raises(ValidationError):
+        patch_errors(samples, model, lut=generate_lut(_LinearOut(), size=17))   # not an sRGB -> sRGB LUT
+
+
+def test_patch_errors_mark_rows_outside_a_capped_split_as_unused():
+    from camera_profile_studio.matching import patch_errors
+
+    x = np.random.default_rng(5).uniform(0.02, 0.98, (25000, 3)).astype(np.float32)
+    samples = SamplePairs(x, np.clip(x * 0.9, 0, 1), tuple(f'g{i // 500}' for i in range(len(x))), 'synthetic cap')
+    model = fit_match(samples, settings=MatchSettings(fit='ccm'))
+    errors = patch_errors(samples, model)
+    used = errors.train | errors.holdout
+    assert used.sum() == len(model.report.train_indices) + len(model.report.holdout_indices) < len(x)
+    assert errors.delta_e00.shape[1] == len(x)      # unused rows are still evaluated

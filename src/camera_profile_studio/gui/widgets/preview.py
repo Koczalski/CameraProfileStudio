@@ -180,6 +180,14 @@ class PreviewPanel(QWidget):
         self.viewer.set_images(qimage, None, keep_view=False)
         self.image_loaded.emit(data)
 
+    def clear_source(self) -> None:
+        """Forget the source image (and any render in flight): back to the empty preview."""
+        self._invalidate_preview()
+        self.source = None
+        self._before_qimage = None
+        self.path_label.set_path(None)
+        self.viewer.clear()
+
     def show_images(self, before, after) -> None:
         """Display already-prepared QImages (e.g. registration check)."""
         self._invalidate_preview()

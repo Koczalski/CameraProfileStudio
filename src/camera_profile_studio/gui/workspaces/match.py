@@ -46,6 +46,7 @@ from ..widgets.common import (
     make_button,
     set_enabled_with_reason,
 )
+from ..widgets.patch_table import PatchTableDialog
 from ..widgets.preview import debounce
 from .lut_base import LutWorkspace
 
@@ -71,6 +72,10 @@ class MatchWorkspace(LutWorkspace):
         self.csv_path = ""
         self._raw_keys: dict[str, tuple] = {}  # side -> RAW recipe the loaded image was decoded with
         self._report_key = "match.report.none"
+
+        # --- what this page needs (it is the advanced route; unrelated photos belong to Image Look Creator)
+        self.intro_label = WrapLabel("match.intro", secondary=True, parent=self)
+        self.side.add(self.intro_label)
 
         # --- evidence type
         mode_box = QGroupBox()
@@ -228,7 +233,14 @@ class MatchWorkspace(LutWorkspace):
         rl = QVBoxLayout(self.report_box)
         self.report_label = WrapLabel("match.report.none", parent=self.report_box)
         rl.addWidget(self.report_label)
+        # every patch, every stage: a separate window, the side panel is too narrow for the table
+        self.patch_table_button = make_button("match.patches.open", "table")
+        self.patch_table_button.setEnabled(False)
+        rl.addWidget(self.patch_table_button)
+        self.patch_dialog: PatchTableDialog | None = None
         self.side.add(self.report_box)
+        self.reset_button = make_button("match.reset", "delete")
+        self.side.add(self.reset_button)
         self.side.add(self.make_output_group())
         self.side.add(self.make_status_group())
         self.side.add_stretch()
@@ -245,6 +257,8 @@ class MatchWorkspace(LutWorkspace):
         self.align_ok.toggled.connect(lambda _b: self._update_fit_state())
         self.register_button.clicked.connect(self._register)
         self.fit_button.clicked.connect(self._fit)
+        self.patch_table_button.clicked.connect(self.open_patch_table)
+        self.reset_button.clicked.connect(self._confirm_reset)
         self.evidence.textChanged.connect(lambda _t: self._update_fit_state())
         self.raw_wb.toggled.connect(lambda _b: self._raw_settings_changed())
         for spin in self.raw_wb_spins:
@@ -280,6 +294,7 @@ class MatchWorkspace(LutWorkspace):
         self.outcome = None
         self._report_key = "match.report.none"
         self._render_report()
+        self._refresh_patch_dialog()
         self.settings_changed()
         self._update_fit_state()
 
@@ -519,6 +534,8 @@ class MatchWorkspace(LutWorkspace):
             return engine.fit(samples, token=token, progress=progress, **params)
 
         def done(outcome: MatchOutcome):
+            # A LUT rebuild started from the previous model must not land on this fit's result.
+            self.ctx.jobs.invalidate(f"{self.key}:lut")
             self.outcome = outcome
             self.model = outcome.model
             self.lut = outcome.lut
@@ -529,6 +546,7 @@ class MatchWorkspace(LutWorkspace):
             for w in outcome.warnings:
                 self.ctx.log.warning("log.match.warning", detail=w)
             self._render_report()
+            self._refresh_patch_dialog()
             self._refresh_preview()
             self._update_state()
 
@@ -568,8 +586,53 @@ class MatchWorkspace(LutWorkspace):
             tr("match.report.after", mean=f"{a['mean']:.2f}", median=f"{a['median']:.2f}", p95=f"{a['p95']:.2f}", max=f"{a['max']:.2f}"),
             tr("match.report.caveat"),
         ]
+        current = o.bake.get(o.lut.size)
+        if current is not None:
+            u, p = current["uniform"], current["points"]
+            lines.append(tr("match.report.bake", size=o.lut.size, mean=f"{u['mean']:.2f}", p95=f"{u['p95']:.2f}",
+                            max=f"{u['max']:.2f}", hmean=f"{p['mean']:.2f}", hmax=f"{p['max']:.2f}"))
+        if all(size in o.bake for size in (17, 33, 65)):
+            lines.append(tr("match.report.bake_sizes", **{f"s{size}": f"{o.bake[size]['uniform']['max']:.2f}"
+                                                          for size in (17, 33, 65)}))
         lines += [f"\u26a0 {w}" for w in o.warnings]
         self.report_label.setText("\n".join(lines))
+
+    # ------------------------------------------------------------ reset
+    def _confirm_reset(self) -> None:
+        if self.ctx.confirm("match.reset.title", "match.reset.text"):
+            self.reset()
+
+    def reset(self) -> None:
+        """Back to the state right after construction: evidence, pair images, fit
+        settings and result.  Output options, application settings and the log stay."""
+        self.cancel()
+        for channel in self.MATCH_CHANNELS:
+            self.ctx.jobs.invalidate(channel)  # a result already on its way must not restore old data
+        self.source = self.target = self.alignment = None
+        self._target_qimage = None
+        self.csv_path = ""
+        self._raw_keys.clear()
+        self.csv_label.set_path(None)
+        self.src_label.set_path(None)
+        self.tgt_label.set_path(None)
+        self.preview.clear_source()
+        self.preview.set_note("")
+        self.rb_pair.setChecked(True)
+        for choice in (self.same_scene, self.prealigned):
+            choice.setChecked(False)
+        self.evidence.clear()
+        self.fit_combo.setCurrentIndex(self.fit_combo.findData("ccm_tone_lut"))
+        self.grid.setCurrentIndex(self.grid.findData(9))
+        self.reg.setValue(0.01)
+        self.holdout.setValue(0.2)
+        self.seed.setValue(42)
+        self.raw_wb.setChecked(True)
+        for spin in self.raw_wb_spins:
+            spin.setValue(0.0)
+        self._raw_debounce.stop()
+        self._sync_raw_wb()
+        self._evidence_changed()  # drops model/outcome/report/LUT and refreshes every dependent control
+        self.ctx.log.info("log.match.reset")
 
     # ----------------------------------------------------------- cancel
     def cancel(self) -> None:
@@ -583,7 +646,39 @@ class MatchWorkspace(LutWorkspace):
             return  # still constructing
         if any(self.ctx.jobs.is_busy(c) for c in self.MATCH_CHANNELS):
             self.cancel_button.setEnabled(True)
+        self.patch_table_button.setEnabled(self.outcome is not None and self.outcome.patches is not None)
         self._update_fit_state()
+
+    # ----------------------------------------------------- patch table
+    def open_patch_table(self) -> PatchTableDialog | None:
+        """Show the per-patch error table of the current fit (None when there is no fit)."""
+        if self.outcome is None or self.outcome.patches is None:
+            return None
+        if self.patch_dialog is None:
+            self.patch_dialog = PatchTableDialog(self.ctx, self.window())
+        self.patch_dialog.set_errors(self.outcome.patches)
+        self.patch_dialog.show()
+        self.patch_dialog.raise_()
+        self.patch_dialog.activateWindow()
+        return self.patch_dialog
+
+    def _refresh_patch_dialog(self) -> None:
+        if self.patch_dialog is not None:
+            self.patch_dialog.set_errors(self.outcome.patches if self.outcome is not None else None)
+
+    def export_extra(self) -> dict:
+        """The bake error of every grid size, in the shape of the CLI's ``bake_error`` output."""
+        o = self.outcome
+        if o is None or not o.bake:
+            return {}
+
+        def stats(entry: dict) -> dict:
+            return {"count": entry["count"], "mean": entry["mean"], "median": entry["median"], "p95": entry["p95"],
+                    "maximum": entry["max"]}
+
+        return {"bake_error": {str(size): {"size": entry["size"], "strength": entry["strength"],
+                                           "uniform": stats(entry["uniform"]), "points": stats(entry["points"])}
+                               for size, entry in sorted(o.bake.items())}}
 
     # ------------------------------------------------------- LUT hooks
     def build_precondition(self):
@@ -594,12 +689,24 @@ class MatchWorkspace(LutWorkspace):
         return None
 
     def build_job(self, size: int, strength: float):
-        engine, model = self.ctx.engine, self.model
+        engine, model, outcome = self.ctx.engine, self.model, self.outcome
 
         def work(token, progress):
-            return engine.regenerate_match_lut(model, size, strength, token)
+            lut = engine.regenerate_match_lut(model, size, strength, token)
+            if outcome is None or outcome.samples is None:
+                return lut, None, {}
+            patches, bake = engine.match_diagnostics(outcome.samples, model, lut, strength, token)
+            return lut, patches, bake
 
         return work
+
+    def _built(self, result) -> None:
+        lut, patches, bake = result
+        if self.outcome is not None and patches is not None:
+            self.outcome.lut, self.outcome.patches, self.outcome.bake = lut, patches, bake
+        super()._built(lut)
+        self._render_report()
+        self._refresh_patch_dialog()
 
     def settings_changed(self) -> None:
         if hasattr(self, "status_label"):

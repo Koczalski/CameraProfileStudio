@@ -5,11 +5,13 @@ camera accuracy. Image decoding and all deliverable LUT I/O belong to core.
 """
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import json
 import threading
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 
 import numpy as np
 from scipy import optimize, sparse
@@ -17,9 +19,10 @@ from scipy.sparse.linalg import cg
 
 from .color import delta_e00, srgb_decode, srgb_to_lab
 from .errors import CancelledError, ImageError, ValidationError, checkpoint as _core_checkpoint
+from .lut import sample_lut
 from .types import (
-    AlignmentResult, ErrorStats, ImageData, JobContext, Mask, MatchModel,
-    MatchReport, MatchSettings, RGB, RGBTransform, SamplePairs, SpaceSpec,
+    AlignmentResult, ErrorStats, ImageData, JobContext, Lut3D, Mask, MatchModel,
+    MatchReport, MatchSettings, PatchErrors, RGB, RGBTransform, SamplePairs, SpaceSpec,
 )
 
 _MAX_SAMPLES = 20000
@@ -477,6 +480,102 @@ def apply_match(rgb: RGB, model: MatchModel, *, context: JobContext | None = Non
                                                model.tone_curve, model.residual)
         _checkpoint(context, stage='apply_match', fraction=min(1, (start + _CHUNK) / len(flat)))
     return _readonly(output.reshape(data.shape))
+
+
+def _lab_components(predicted: np.ndarray, target: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Signed CIELAB differences, prediction minus target: lightness, chroma and the hue term dH*ab
+    (CIE94 decomposition, so dL^2 + dC^2 + dH^2 = dE76^2).  dH is positive when the prediction's hue
+    angle lies counter-clockwise of the target's."""
+    diff = predicted - target
+    chroma_p = np.hypot(predicted[:, 1], predicted[:, 2])
+    chroma_t = np.hypot(target[:, 1], target[:, 2])
+    delta_c = chroma_p - chroma_t
+    cross = target[:, 1] * predicted[:, 2] - target[:, 2] * predicted[:, 1]
+    delta_h = np.sign(cross) * np.sqrt(np.maximum(diff[:, 1] ** 2 + diff[:, 2] ** 2 - delta_c ** 2, 0))
+    return diff[:, 0], delta_c, delta_h
+
+
+def patch_errors(samples: SamplePairs, model: MatchModel, *, lut: Lut3D | None = None,
+                 context: JobContext | None = None) -> PatchErrors:
+    """Error of every sample at every stage of ``model``: ``before`` (identity), ``ccm``, ``tone``,
+    ``residual`` (= :func:`apply_match`) and, when ``lut`` is given, ``baked`` (the exported grid LUT
+    sampled as the LUT reader will).  Rows outside the model's split (capped fits) are evaluated too and
+    marked neither train nor hold-out.  Nothing here feeds back into fitting."""
+    _checkpoint(context, stage='patch_errors', fraction=0)
+    _validate_model(model)
+    source, target = _rgb(samples.source_rgb), _rgb(samples.target_rgb)
+    if source.ndim != 2 or source.shape != target.shape:
+        _fail('Paired matching samples must have identical Nx3 shapes.')
+    n = len(source)
+    groups = tuple(samples.groups)
+    if len(groups) != n:
+        _fail('Matching samples need one group per row.')
+    train = np.zeros(n, dtype=bool)
+    holdout = np.zeros(n, dtype=bool)
+    for mask, indices in ((train, model.report.train_indices), (holdout, model.report.holdout_indices)):
+        idx = np.asarray(indices, dtype=np.int64)
+        if idx.size and (idx.min() < 0 or idx.max() >= n):
+            _fail('Samples do not belong to this model: its hold-out split points past these rows.')
+        mask[idx] = True
+    if lut is not None and (lut.input_space != SpaceSpec('srgb') or lut.output_space != SpaceSpec('srgb')):
+        _fail('The baked stage needs the sRGB -> sRGB LUT exported from this match.', 'invalid_lut')
+    source32 = source.astype(np.float32)
+    linear = np.asarray(srgb_decode(source32), dtype=np.float64)
+    after_ccm = _encode(linear @ model.ccm.T)
+    after_tone = _tone(after_ccm, model.tone_curve)
+    stages = [('before', source32),
+              ('ccm', np.clip(after_ccm, 0, 1).astype(np.float32)),
+              ('tone', np.clip(after_tone, 0, 1).astype(np.float32)),
+              ('residual', _predict(source32, model.ccm, model.tone_curve, model.residual))]
+    if lut is not None:
+        stages.append(('baked', np.asarray(sample_lut(lut, source32), dtype=np.float32)))
+    _checkpoint(context, stage='patch_errors', fraction=0.3)
+    target_lab = srgb_to_lab(target)
+    de00, dl, dc, dh = [], [], [], []
+    for number, (_name, predicted) in enumerate(stages, start=1):
+        lab = srgb_to_lab(predicted)
+        de00.append(np.asarray(delta_e00(lab, target_lab)))
+        components = _lab_components(lab, target_lab)
+        dl.append(components[0])
+        dc.append(components[1])
+        dh.append(components[2])
+        _checkpoint(context, stage='patch_errors', fraction=0.3 + 0.7 * number / len(stages))
+    if not all(np.isfinite(np.stack(part)).all() for part in (de00, dl, dc, dh)):
+        _fail('Nonfinite color differences.', 'fit_failed')
+    return PatchErrors(tuple(name for name, _ in stages), _readonly(np.arange(n), np.int64), groups,
+                       _readonly(train, np.bool_), _readonly(holdout, np.bool_), _readonly(source32),
+                       _readonly(target), _readonly(np.stack([p for _, p in stages])),
+                       _readonly(np.stack(de00), np.float64), _readonly(np.stack(dl), np.float64),
+                       _readonly(np.stack(dc), np.float64), _readonly(np.stack(dh), np.float64))
+
+
+def patch_errors_text(errors: PatchErrors, format: str = 'csv') -> str:
+    """``errors`` as the text of a file: CSV with one row per sample and the stages side by side, or
+    JSON with the record's fields as lists (plus ``schema_version``)."""
+    if format == 'json':
+        payload: dict = {'schema_version': 1}
+        for field in fields(errors):
+            value = getattr(errors, field.name)
+            payload[field.name] = value.tolist() if isinstance(value, np.ndarray) else list(value)
+        return json.dumps(payload, ensure_ascii=True, allow_nan=False, sort_keys=True, indent=2) + '\n'
+    if format != 'csv':
+        _fail("Patch error text format must be 'csv' or 'json'.")
+    header = ['index', 'group', 'set', 'source_r', 'source_g', 'source_b', 'target_r', 'target_g', 'target_b']
+    for stage in errors.stages:
+        header += [f'{stage}_{column}' for column in ('r', 'g', 'b', 'de00', 'dL', 'dC', 'dH')]
+    sets = np.where(errors.holdout, 'holdout', np.where(errors.train, 'train', 'unused'))
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator='\n')
+    writer.writerow(header)
+    for row in range(len(errors.indices)):
+        cells: list = [int(errors.indices[row]), errors.groups[row], str(sets[row])]
+        cells += [f'{v:.6g}' for v in (*errors.source_rgb[row], *errors.target_rgb[row])]
+        for stage in range(len(errors.stages)):
+            cells += [f'{v:.6g}' for v in (*errors.predicted_rgb[stage, row], errors.delta_e00[stage, row],
+                                            errors.delta_l[stage, row], errors.delta_c[stage, row],
+                                            errors.delta_h[stage, row])]
+        writer.writerow(cells)
+    return buffer.getvalue()
 
 
 @dataclass(frozen=True, slots=True)

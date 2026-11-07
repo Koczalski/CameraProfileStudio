@@ -17,8 +17,10 @@ import zlib
 
 import numpy as np
 
+from .color import delta_e00, srgb_to_lab
 from .errors import ExportError, ValidationError, checkpoint
-from .types import ExportResult, Gamut, JobContext, Lut3D, Progress, RGB, RGBTransform, SpaceSpec, ValidationReport
+from .types import (BakeError, ErrorStats, ExportResult, Gamut, JobContext, Lut3D, Progress, RGB, RGBTransform,
+                    SpaceSpec, ValidationReport)
 
 _SIZES = (17, 33, 65)
 _CHUNK = 32768
@@ -143,6 +145,51 @@ def sample_lut(lut: Lut3D, rgb: RGB, *, out_of_domain: Gamut = 'clip',
         result[start:end] = np.clip(out, 0, 1)
         checkpoint(context, stage='sample_lut', fraction=end / len(flat))
     return result.reshape(array.shape)
+
+
+def bake_error(transform: RGBTransform, lut: Lut3D, *, points: RGB | None = None, count: int = 30000,
+               seed: int = 0, context: JobContext | None = None) -> BakeError:
+    """How far ``lut`` (sampled tetrahedrally, as a LUT reader will) is from the ``transform`` it was
+    baked from, as dE00 at ``count`` uniform pseudo-random points of the unit cube (fixed ``seed``) and,
+    when given, at ``points``.  The reference is blended with the LUT's own strength exactly as
+    :func:`generate_lut` did, so this isolates the grid: it says nothing about how good the transform
+    is.  Defined for LUTs whose output is encoded sRGB, where dE00 applies."""
+    checkpoint(context, stage='bake_error', fraction=0)
+    _require_valid(lut)
+    if (lut.output_space != SpaceSpec('srgb') or transform.input_space != lut.input_space
+            or transform.output_space != lut.output_space):
+        raise ValidationError('Bake error is measured for sRGB-output LUTs of the same transform only',
+                              code='bake_error_unsupported')
+    if type(count) is not int or not 1 <= count <= 1_000_000 or type(seed) is not int or seed < 0:
+        raise ValidationError('count must be 1..1000000 and seed a non-negative integer', code='invalid_bake_error')
+    strength = float(lut.strength)
+
+    def measure(rgb: np.ndarray, stage_from: float, stage_to: float) -> ErrorStats:
+        reference = np.empty_like(rgb)
+        for start in range(0, len(rgb), _CHUNK):
+            end = min(start + _CHUNK, len(rgb))
+            child_context = JobContext(cancel=context.cancel) if context is not None else None
+            full = np.asarray(transform.apply(rgb[start:end], context=child_context))
+            if (full.dtype.kind not in 'iuf' or full.shape != rgb[start:end].shape or not np.isfinite(full).all()
+                    or np.any((full < 0) | (full > 1))):
+                raise ValidationError('Transform returned invalid or out-of-domain RGB', code='invalid_transform_output')
+            reference[start:end] = np.clip((1 - strength) * rgb[start:end] + strength * full, 0, 1)
+            checkpoint(context, stage='bake_error', fraction=stage_from + (stage_to - stage_from) * end / len(rgb))
+        errors = np.asarray(delta_e00(srgb_to_lab(sample_lut(lut, rgb)), srgb_to_lab(reference)))
+        if not np.isfinite(errors).all():
+            raise ValidationError('Nonfinite color differences', code='bake_error_failed')
+        return ErrorStats(len(errors), float(errors.mean()), float(np.median(errors)),
+                          float(np.percentile(errors, 95)), float(errors.max()))
+
+    uniform = measure(np.random.default_rng(seed).random((count, 3), dtype=np.float32), 0.0, 0.5 if points is not None else 1.0)
+    on_points = None
+    if points is not None:
+        array = np.asarray(points)
+        if (array.dtype.kind not in 'iuf' or not array.size or array.ndim < 1 or array.shape[-1] != 3
+                or not np.isfinite(array).all() or np.any((array < 0) | (array > 1))):
+            raise ValidationError('points must be finite (...,3) RGB in the unit cube', code='invalid_rgb')
+        on_points = measure(array.reshape(-1, 3).astype(np.float32), 0.5, 1.0)
+    return BakeError(int(lut.values.shape[0]), strength, uniform, on_points)
 
 
 def _tetrahedral(table: np.ndarray, strides: np.ndarray, p: np.ndarray, n: int) -> np.ndarray:

@@ -150,15 +150,23 @@ def _lut_summary(loaded) -> dict:
             'source_format': loaded.source_format, 'warnings': list(loaded.warnings)}
 
 
-def _write_json_report(path: Path, payload: dict, *, overwrite: bool) -> None:
+def _check_report_path(path: Path, *, overwrite: bool) -> None:
     if path.is_dir():
         raise ExportError('The report path is a directory; give a file name.', code='invalid_export_path')
     if path.exists() and not overwrite:
         raise ExportError('Report file already exists; use --overwrite explicitly.', code='output_exists')
+
+
+def _write_json_report(path: Path, payload: dict, *, overwrite: bool) -> None:
     text = json.dumps(_jsonable(payload), ensure_ascii=True, allow_nan=False, sort_keys=True, indent=2) + '\n'
+    _write_text_report(path, text, overwrite=overwrite)
+
+
+def _write_text_report(path: Path, text: str, *, overwrite: bool) -> None:
+    _check_report_path(path, overwrite=overwrite)
     temporary = None
     try:
-        handle, name = tempfile.mkstemp(prefix='.' + path.stem + '-', suffix='.json.tmp', dir=path.parent)
+        handle, name = tempfile.mkstemp(prefix='.' + path.stem + '-', suffix=path.suffix + '.tmp', dir=path.parent)
         temporary = Path(name)
         with os.fdopen(handle, 'w', encoding='utf-8', newline='\n') as stream:
             stream.write(text)
@@ -227,6 +235,8 @@ def _parser():
     match = commands.add_parser('match', help='Fit paired sRGB samples with grouped holdout evaluation.')
     match.add_argument('--samples', type=Path, required=True)
     match.add_argument('--settings', type=Path)
+    match.add_argument('--patch-report', type=Path, metavar='OUT',
+                       help='Also write the error of every sample at every stage (CSV for a .csv name, JSON otherwise).')
     image_look = commands.add_parser('image-look', help='Estimate one approximate global sRGB look from finished reference photos '
                                    '(optionally relative to your own base photos, role "base").')
     image_look.add_argument('--request', type=Path, required=True)
@@ -286,6 +296,13 @@ def main(argv: list[str] | None = None) -> int:
         if any(path is not None and path.resolve() in output_paths for path in input_paths):
             raise ValidationError('Output artifacts must not overwrite input settings or samples.', code='source_output_collision')
         export_format, _ = _check_lut_outputs(args)
+        patch_report = getattr(args, 'patch_report', None)
+        if patch_report is not None:
+            claimed = output_paths | {path.resolve() for path in input_paths if path is not None}
+            if patch_report.resolve() in claimed:
+                raise ValidationError('The patch report must not overwrite the LUT, its metadata, the samples or the settings.',
+                                      code='source_output_collision')
+            _check_report_path(patch_report, overwrite=args.overwrite)   # before any fitting or writing
         report = None
         image_look_report = None
         if args.command == 'convert':
@@ -326,18 +343,33 @@ def main(argv: list[str] | None = None) -> int:
                                  'base_count': analysis.base_count}
         else:
             settings = _record(MatchSettings, _read_json(args.settings)) if args.settings else MatchSettings()
-            matching = _module('matching')
-            model = matching.fit_match(_samples(args.samples), settings=settings)
+            matching, lut_mod = _module('matching'), _module('lut')
+            samples = _samples(args.samples)
+            model = matching.fit_match(samples, settings=settings)
             transform = matching.create_match_transform(model)
             try:
-                lut = _module('lut').generate_lut(transform, size=args.size, strength=args.strength)
+                lut = lut_mod.generate_lut(transform, size=args.size, strength=args.strength)
+                # The grid alone, at every size: measured on uniform points and on this fit's hold-out inputs.
+                held = np.asarray(samples.source_rgb)[model.report.holdout_indices]
+                bake_error = {}
+                for size in (17, 33, 65):
+                    grid = lut if size == args.size else lut_mod.generate_lut(transform, size=size, strength=args.strength)
+                    bake_error[str(size)] = lut_mod.bake_error(transform, grid, points=held)
             finally:
                 transform.close()
             report = model.report
-        result = _module('lut').export_lut(lut, args.output, format=export_format, overwrite=args.overwrite)
+            if patch_report is not None:
+                patch_errors = matching.patch_errors(samples, model, lut=lut)
+        result = lut_mod.export_lut(lut, args.output, format=export_format, overwrite=args.overwrite) \
+            if args.command == 'match' else _module('lut').export_lut(lut, args.output, format=export_format, overwrite=args.overwrite)
         output = {'schema_version': 1, 'export': result}
         if report is not None:
             output['holdout_report'] = report
+            output['bake_error'] = bake_error
+            if patch_report is not None:
+                kind = 'csv' if patch_report.suffix.lower() == '.csv' else 'json'
+                _write_text_report(patch_report, matching.patch_errors_text(patch_errors, kind), overwrite=args.overwrite)
+                output['patch_report'] = str(patch_report)
         if image_look_report is not None:
             output['image_look_report'] = image_look_report
         _print_json(output)
