@@ -16,6 +16,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 LEFT_OUT = tuple(f'packaging/windows-launcher/{name}/portable/_internal/payload.py'
                  for name in ('release-0.2.5', 'release-0.2.6', 'release-0.2.6-1102-1423', 'release-0.2.7')) + (
+    # the launcher's build folders and logs sit inside the repository tree, so a direct run would pick them up
+    'packaging/windows-launcher/b/1102-1423/old.txt',
+    'packaging/windows-launcher/build-logs/1102-1423/console.txt',
     'docs/release-archive/old.md',
     'src/camera_profile_studio/release-old/module.py',
     'licenses/upstream-source/library/release-1.0/data.txt',   # not a notice
@@ -24,7 +27,7 @@ KEPT = (
     'pyproject.toml',
     'src/camera_profile_studio/module.py',
     'packaging/release_workspace.py',
-    'packaging/windows-launcher/Build-0.2.7.ps1',
+    'packaging/windows-launcher/Build-0.2.8-beta.ps1',
     'docs/release-notes.md',
     'docs/release_checklist/steps.md',
     'docs/prerelease-1/steps.md',

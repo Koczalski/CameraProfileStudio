@@ -21,6 +21,9 @@ def include(path: Path) -> bool:
     excluded_dirs = EXCLUDED_DIRS
     # Release output of any version (packaging/windows-launcher/release-*); folders only, not release-notes.md.
     in_release_dir = any(part.startswith('release-') for part in relative.parts[:-1])
+    # The launcher's work folder (b) and logs (build-logs) live inside the tree; they are build output too.
+    in_release_dir = in_release_dir or (relative.parts[:2] == ('packaging', 'windows-launcher')
+                                        and len(relative.parts) > 3 and relative.parts[2] in ('b', 'build-logs'))
     # License collectors preserve upstream paths, including Nuitka's build/inline_copy notices.
     if (relative.parts[0] == 'licenses'
             and path.name.lower().startswith(('license', 'copying', 'copyright', 'notice'))

@@ -2,7 +2,7 @@
 カメラプロファイル（ICC / DCP）や写真から 3D LUT を作る Windows デスクトップアプリ。Python 3.12 + PySide6。個人の趣味プロジェクト。
 
 # コマンド
-- セットアップ: `py -3.12 -m venv .venv` → `.venv\Scripts\activate` → `pip install -e .[gui,raw,test]`
+- セットアップ: `py -3.12 -m venv .venv` → `.venv\Scripts\activate` → `pip install -e .[gui,raw,test]`（`py` に 3.12 が登録されていない PC では、3.12 の python.exe で `-m venv .venv` する）
 - 起動（GUI）: `python -m camera_profile_studio.gui.app`
 - テスト全体: `.venv\Scripts\python.exe -m pytest -q`
 - テスト1ファイル: `.venv\Scripts\python.exe -m pytest tests/test_lut_engine.py -q`
@@ -16,6 +16,7 @@
 # テストのマーカー
 - `gui`（PySide6 が必要）、`lcms`（本物の lcms2.dll が必要）、`reference`（独立した参照データが必要）、`windows`（Windows 統合）
 - 完了判定では既定でこれらを除外している
+- 例外: `lcms` マーカーのないテストにも lcms2.dll を使うものがある（約 40 件）。`CPS_LCMS2_DLL` を設定せずに素の `pytest -q` を実行すると、それらが `LittleCMS 2 runtime is not installed` で失敗する。ゲートは DLL を設定して実行する。手で全体を回すときは、先に `CPS_LCMS2_DLL` を設定する
 
 # 進め方
 - 影響が複数ファイルに広がる変更は、計画を見せてから実装する
