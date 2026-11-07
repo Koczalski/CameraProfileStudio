@@ -42,13 +42,21 @@ _SECTOR_GAIN = (.6, 1.6)
 _TOTAL_GAIN = (.4, 2.5)
 _MIN_SLOPE = .15
 _MIN_END_SPAN = .01       # base quantile spacing needed to estimate a tone end slope
-# Without base photos the reference statistics also contain the *content* of the references (a dark
-# scene, a green forest), so the raw difference to a typical photograph over-corrects.  Against the
-# built-in typical-photo baseline (only) the three components are therefore multiplied by these factors.
-# Chosen on synthetic known transforms (3 reference sets x 5 transforms x 4 targets, mean CIEDE2000):
-# tone .15 / cast .35 / saturation .7 gave the lowest mean error and the smallest error for an identity look.
-_TYPICAL_DAMPING = {'tone': .15, 'cast': .35, 'saturation': .7}
-_NO_DAMPING = {'tone': 1., 'cast': 1., 'saturation': 1.}
+# Look versus scene content.  Unpaired photos differ in what they show (a dark room, a green forest), and a
+# statistic of the pooled photos cannot tell that from a look.  Each parameter group (the deviations from the
+# identity that the fit produces) is therefore shrunk towards zero with a positive-part James-Stein factor
+#     f = max(0, 1 - lambda^2 * G * (1/n_reference + 1/n_base) / |d|^2)
+# where G is the natural between-photo spread of that group: the 90th percentile, over finished photographs,
+# of the squared length of the group's parameters fitted for ONE photograph against the typical photo.  (The
+# upper quantile, not the mean: one photo dominated by a single hue or colour is not rare, and the mean of the
+# squares is 2-3 times smaller than that.)  Measured on 140 photographs of 10 cameras
+# (scripts/derive_natural_spread.py); only these numbers are stored.  The tone group is measured with the
+# overall lightness shift removed (scene exposure is not a look).  The band group sits at its limit: a
+# single photo's saturation cannot be told from its subject, and the hue-sector group (the least identifiable)
+# uses the largest value seen.  Against the built-in typical photo (no base
+# photos) the typical photo adds no sampling noise, so only 1/n_reference counts.
+_NATURAL_SPREAD = {'tone': .342, 'cast': .0061, 'band': 2.402, 'sector': .301}
+_SHRINK_LAMBDA = 1.5
 
 # Pooled Oklab statistics of 45 varied finished photographs (landscape,
 # portrait, night, interiors, product; sRGB and Adobe RGB sources), sampled at
@@ -197,6 +205,8 @@ class ImageLookSettings:
     color_amount: float = 1.0
     saturation_amount: float = 1.0
     acknowledge_conflicts: bool = False
+    shrinkage: float = 1.0              # 0..1: how strictly differences must exceed the natural scene-to-scene
+                                        # spread to count as look; 0 takes every difference at face value
 
     def __post_init__(self):
         if self.baseline_version != BASELINE_VERSION:
@@ -205,7 +215,7 @@ class ImageLookSettings:
             value = getattr(self, name)
             if type(value) is not int or not low <= value <= high:
                 _fail(f'{name} must be an integer in [{low}, {high}].')
-        for name in ('tone_amount', 'color_amount', 'saturation_amount'):
+        for name in ('tone_amount', 'color_amount', 'saturation_amount', 'shrinkage'):
             _number(getattr(self, name), name)
             object.__setattr__(self, name, float(getattr(self, name)))
         if type(self.acknowledge_conflicts) is not bool:
@@ -254,10 +264,14 @@ class ImageLookReferenceAnalysis:
     stats: LookStatistics
     normalization: tuple[tuple[str, str], ...]
     warnings: tuple[str, ...] = ()
+    layout: tuple[float, ...] = ()      # 8x8 block-mean Oklab lightness; tells whether two images show the same scene
 
     def __post_init__(self):
         if not isinstance(self.reference, ImageLookReference):
             _fail('Expected ImageLookReference.')
+        if self.layout and (len(self.layout) != _LAYOUT ** 2 or not np.isfinite(self.layout).all()):
+            _fail('Invalid lightness layout.')
+        object.__setattr__(self, 'layout', tuple(float(v) for v in self.layout))
         if (not isinstance(self.source_sha256, str) or len(self.source_sha256) != 64
                 or any(c not in '0123456789abcdef' for c in self.source_sha256)):
             _fail('Expected hexadecimal source SHA256.')
@@ -469,6 +483,39 @@ def _sample(rgb, reference, settings):
     return pixels, count, (left, top, right, bottom)
 
 
+_LAYOUT = 8              # blocks per side of the lightness layout
+_PAIR_RHO = .95          # rank correlation of two layouts above which two images show the same scene
+_PAIR_NOISE = 0.         # scene-content noise that remains between two images of the same scene: none, the look is all that differs
+
+
+def _layout(pixels, n):
+    """8x8 block means of Oklab lightness over the square sample grid."""
+    lightness = srgb_to_oklab(pixels)[:, 0].reshape(n, n)
+    edges = np.linspace(0, n, _LAYOUT + 1).astype(int)
+    rows = np.add.reduceat(lightness, edges[:-1], axis=0) / np.diff(edges)[:, None]
+    return tuple(float(v) for v in (np.add.reduceat(rows, edges[:-1], axis=1) / np.diff(edges)[None, :]).ravel())
+
+
+def _rank_correlation(first, second):
+    """Spearman correlation: a monotone tone curve (any global look) leaves the ranks, hence it, unchanged."""
+    from scipy.stats import rankdata
+    a, b = rankdata(first), rankdata(second)
+    a, b = a - a.mean(), b - b.mean()
+    denominator = float(np.sqrt(np.sum(a * a) * np.sum(b * b)))
+    return float(np.sum(a * b) / denominator) if denominator > 0 else 0.
+
+
+def _same_scene_shares(refs, ref_weights, bases, base_weights):
+    """Share of the reference weight and of the base weight whose image has a partner showing the same
+    scene (the user's photo before and after editing).  Such a pair differs by the look only."""
+    if not refs or not bases or any(not r.layout for r in refs + bases):
+        return 0., 0.
+    rho = np.array([[_rank_correlation(r.layout, b.layout) for b in bases] for r in refs])
+    matched = rho >= _PAIR_RHO
+    return (float(np.sum(ref_weights[matched.any(axis=1)]) / np.sum(ref_weights)),
+            float(np.sum(base_weights[matched.any(axis=0)]) / np.sum(base_weights)))
+
+
 def _statistics(rgb, reference, digest, settings, normalization, loader_warnings):
     pixels, count, box = _sample(rgb, reference, settings)
     if np.max(np.std(pixels, axis=0)) < 1e-5:
@@ -488,7 +535,8 @@ def _statistics(rgb, reference, digest, settings, normalization, loader_warnings
                  'image_look_normalized_shape': json.dumps(list(rgb.shape)),
                  'image_look_sampling': 'seeded normalized stratified square grid; equal image mass',
                  'image_look_color_domain': 'encoded sRGB -> Oklab (D65)'})
-    return ImageLookReferenceAnalysis(reference, digest, count, stats, tuple(sorted(norm.items())), tuple(warnings))
+    return ImageLookReferenceAnalysis(reference, digest, count, stats, tuple(sorted(norm.items())), tuple(warnings),
+                                      _layout(pixels, settings.analysis_size))
 
 
 def _conflicts(records):
@@ -617,11 +665,27 @@ def _pchip(x, y, m, t):
     return h00 * y[i] + h10 * h * m[i] + h01 * y[i + 1] + h11 * h * m[i + 1]
 
 
-def _fit(ref: LookStatistics, base: LookStatistics, settings: ImageLookSettings, baseline: str = 'base_images'):
-    damping = _TYPICAL_DAMPING if baseline == 'typical_photo' else _NO_DAMPING
-    tone_amount = settings.tone_amount * damping['tone']
-    color_amount = settings.color_amount * damping['cast']
-    saturation_amount = settings.saturation_amount * damping['saturation']
+def _shrink(values, group: str, inv_n: float | None, strictness: float = 1.) -> float:
+    """Positive-part James-Stein factor of one parameter group (1 when shrinkage is off)."""
+    if inv_n is None:
+        return 1.
+    energy = float(np.sum(np.square(values)))
+    if energy <= 0.:
+        return 0.
+    # Squared: a deviation just above the natural spread is more likely noise than look, so it passes only a
+    # little; a deviation far above it (factor near 1) is barely touched.
+    return max(0., 1. - (_SHRINK_LAMBDA * strictness) ** 2 * _NATURAL_SPREAD[group] * inv_n / energy) ** 2
+
+
+def _fit(ref: LookStatistics, base: LookStatistics, settings: ImageLookSettings, baseline: str = 'base_images',
+         inv_n: float | None = None, factors: dict | None = None, paired: float = 0.):
+    """Fit the look parameters.  ``inv_n`` = 1/n_reference (+ 1/n_base with base photos) switches the
+    shrinkage on; ``factors`` (a dict) receives the factor of each parameter group; ``paired`` is the share of
+    images that show the same scene as a partner (for those the overall brightness change is part of the look)."""
+    tone_amount, color_amount, saturation_amount = settings.tone_amount, settings.color_amount, settings.saturation_amount
+    factors = {} if factors is None else factors
+    if settings.shrinkage == 0:
+        inv_n = None                                   # every difference is taken at face value
     # --- tone: quantile map base -> reference, extended to the ends -------
     bx, by = base.l_quantiles, ref.l_quantiles
     # End slopes are only estimated where the base quantiles are spread out; a pile-up (clipped
@@ -635,18 +699,29 @@ def _fit(ref: LookStatistics, base: LookStatistics, settings: ImageLookSettings,
     # The deviation from the identity is scaled linearly; the knots are made valid first so that a
     # zero amount gives exactly y == x.
     deviation = y - x
+    if inv_n is not None:
+        deviation = deviation - (1. - paired) * deviation.mean()   # unrelated scenes: their brightness is not a look
+        factors['tone'] = _shrink(deviation, 'tone', inv_n, settings.shrinkage)
+        deviation = deviation * factors['tone']
     x = _valid_x(x)
     y = _valid_y(x, x + tone_amount * deviation)
     # --- colour cast per band ------------------------------------------
     valid = (ref.cast_mass >= _MIN_MASS) & (base.cast_mass >= _MIN_MASS)
     delta = _fill_invalid(ref.cast - base.cast, valid)
-    cast = np.zeros((5, 2)) if delta is None else np.clip(delta, -_CAST_LIMIT, _CAST_LIMIT) * color_amount
+    if delta is None:
+        cast = np.zeros((5, 2))
+    else:
+        delta = np.clip(delta, -_CAST_LIMIT, _CAST_LIMIT)
+        factors['cast'] = _shrink(delta, 'cast', inv_n, settings.shrinkage)
+        cast = delta * factors['cast'] * color_amount
     # --- chroma gain per band -------------------------------------------
     valid = (ref.chroma_mass >= _MIN_MASS) & (base.chroma_mass >= _MIN_MASS) & (base.chroma > 1e-3)
     with np.errstate(invalid='ignore', divide='ignore'):
         ratio = np.where(valid, ref.chroma / np.maximum(base.chroma, 1e-3), 1.)
     gain = _fill_invalid(ratio, valid)
     gain = np.ones(5) if gain is None else np.clip(gain, *_BAND_GAIN)
+    factors['band'] = _shrink(np.log(gain), 'band', inv_n, settings.shrinkage)
+    gain = np.exp(factors['band'] * np.log(gain))
     gain = np.clip(1 + saturation_amount * (gain - 1), *_BAND_GAIN)
     # --- hue-sector relative gain ----------------------------------------
     valid = (ref.sector_mass >= .03) & (base.sector_mass >= .03) & (base.sector_chroma > 1e-3)
@@ -655,6 +730,8 @@ def _fit(ref: LookStatistics, base: LookStatistics, settings: ImageLookSettings,
     with np.errstate(invalid='ignore', divide='ignore'):
         rel = np.where(valid, ref_rel / np.maximum(base_rel, 1e-3), 1.)
     rel = np.clip(rel, *_SECTOR_GAIN)
+    factors['sector'] = _shrink(np.log(rel), 'sector', inv_n, settings.shrinkage)
+    rel = np.exp(factors['sector'] * np.log(rel))
     # circular smoothing so a single sector cannot create a hue seam
     rel = .25 * np.roll(rel, 1) + .5 * rel + .25 * np.roll(rel, -1)
     sector = np.clip(1 + saturation_amount * (rel - 1), *_SECTOR_GAIN)
@@ -687,13 +764,27 @@ def fit_image_look(analysis: ImageLookAnalysis, *, acknowledge_conflicts: bool |
         weights = np.array([r.reference.weight for r in group])
         weights = weights / weights.max()
         confidence = np.array([min(1., r.sample_count / 256) for r in group])
-        return pool_statistics([r.stats for r in group], weights * confidence)
-    ref = pooled('reference')
-    base = pooled('base')
+        weight = weights * confidence
+        # Effective number of photos behind the pool (Kish): unequal weights count for fewer photos, and the
+        # same crop of the same file listed again is no new evidence.
+        distinct: dict[tuple, float] = {}
+        for r, w in zip(group, weight):
+            key = (r.source_sha256, r.reference.roi)
+            distinct[key] = distinct.get(key, 0.) + float(w)
+        shares = np.array(list(distinct.values()))
+        return (pool_statistics([r.stats for r in group], weight), float(shares.sum() ** 2 / np.sum(shares ** 2)),
+                group, weight)
+    ref, n_ref, ref_group, ref_weight = pooled('reference')
+    base, n_base, base_group, base_weight = pooled('base') or (None, None, [], None)
     baseline = 'base_images' if base is not None else 'typical_photo'
     if base is None:
         base = _typical()
-    x, y, cast, gain, sector = _fit(ref, base, settings, baseline)
+    # An image the user's own photo is the "before" of differs by the look only: no scene noise for that share.
+    shared_ref, shared_base = _same_scene_shares(ref_group, ref_weight, base_group, base_weight)
+    noise_scale = 1. - min(shared_ref, shared_base) * (1. - _PAIR_NOISE)
+    inv_n = noise_scale * (1. / n_ref + (1. / n_base if n_base else 0.))
+    factors: dict[str, float] = {}
+    x, y, cast, gain, sector = _fit(ref, base, settings, baseline, inv_n, factors, min(shared_ref, shared_base))
     warnings = set(analysis.warnings) | {'approximate_unverified'} | set(conflicts)
     if conflicts:
         warnings.add('conflicts_acknowledged')
@@ -725,9 +816,16 @@ def fit_image_look(analysis: ImageLookAnalysis, *, acknowledge_conflicts: bool |
                              'neutral_chroma': _NEUTRAL_CHROMA, 'hue_sectors': _SECTORS, 'min_mass': _MIN_MASS,
                              'cast_limit': _CAST_LIMIT, 'band_gain': _BAND_GAIN, 'sector_gain': _SECTOR_GAIN,
                              'total_gain': _TOTAL_GAIN, 'min_tone_slope': _MIN_SLOPE,
-                             'typical_photo_damping': dict(_TYPICAL_DAMPING) if baseline == 'typical_photo' else None,
+                             'shrinkage': {'lambda': _SHRINK_LAMBDA, 'natural_spread': _NATURAL_SPREAD,
+                                           'n_reference': round(n_ref, 3),
+                                           'same_scene': {'reference_share': round(shared_ref, 3),
+                                                          'base_share': round(shared_base, 3),
+                                                          'noise_scale': round(noise_scale, 3)},
+                                           'n_base': None if n_base is None else round(n_base, 3),
+                                           'factors': {k: round(v, 4) for k, v in sorted(factors.items())}},
                              'tone': 'quantile map base -> reference, PCHIP, end slopes clipped [0.5, 3]; '
-                                     'deviation from identity scaled by tone_amount (x damping for typical_photo)',
+                                     'overall lightness shift removed; deviation from identity shrunk, then '
+                                     'scaled by tone_amount',
                              'pooling': 'weighted mean of quantile functions; mass-weighted band/sector means',
                              'gamut': 'chroma reduced toward neutral (bisection) until inside sRGB, then clip'})),
         ('model', _json({'tone_x': np.round(x, 5).tolist(), 'tone_y': np.round(y, 5).tolist(),

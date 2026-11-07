@@ -19,6 +19,9 @@ from camera_profile_studio.lut import export_cube, generate_lut, read_cube, samp
 from camera_profile_studio.types import ImageData, JobContext, SpaceSpec
 
 ZERO = dict(tone_amount=0, color_amount=0, saturation_amount=0)
+# The default estimator shrinks differences that are no bigger than the natural spread between unrelated photos
+# (see test_image_look_bench.py).  Tests of the estimator's mechanics take every difference at face value.
+UNSHRUNK = ImageLookSettings(shrinkage=0)
 
 
 def fixture_rgb(cast=0., tone=0., size=128):
@@ -65,7 +68,7 @@ LUMA = np.array([.2126, .7152, .0722])
 
 @pytest.mark.parametrize('cast', [-.035, .035])
 def test_actual_warm_cool_nonidentity_and_safety(tmp_path, cast):
-    model, analysis = fit_reference(tmp_path, fixture_rgb(cast=cast))
+    model, analysis = fit_reference(tmp_path, fixture_rgb(cast=cast), UNSHRUNK)
     assert analysis.references[0].color_support > .5
     # warm = +yellow (Oklab b), cool = -b; the shift is measured against neutral grey
     assert np.sign(model.cast[:, 1].mean()) == np.sign(cast)
@@ -112,7 +115,7 @@ def test_zero_amounts_are_identity_within_1e6(tmp_path, base):
     rgb = fixture_rgb().reshape(-1, 3)
     np.testing.assert_allclose(apply_image_look(rgb, model), rgb, atol=1e-6)
     # a model with active amounts on the same input is clearly not the identity
-    active, _ = fit_with_base(tmp_path, reference, other) if base else fit_reference(tmp_path, reference)
+    active, _ = fit_with_base(tmp_path, reference, other) if base else fit_reference(tmp_path, reference, UNSHRUNK)
     assert np.max(np.abs(apply_image_look(points, active) - points)) > .01
 
 
@@ -142,7 +145,7 @@ def test_tone_amount_scales_the_tone_deviation_linearly(tmp_path, base):
     reference, other = fixture_rgb(cast=.01, tone=.3), fixture_rgb()
     deviations = {}
     for amount in (0., .25, .5, 1.):
-        settings = ImageLookSettings(tone_amount=amount)
+        settings = ImageLookSettings(tone_amount=amount, shrinkage=0)
         model, _ = fit_with_base(tmp_path, reference, other, settings) if base else fit_reference(tmp_path, reference, settings)
         deviations[amount] = deviation(model)
     assert np.max(np.abs(deviations[1.])) > .01
@@ -153,26 +156,52 @@ def test_tone_amount_scales_the_tone_deviation_linearly(tmp_path, base):
     assert np.all(np.diff(knots) > 0) and knots[0] == 0 and knots[-1] == 1
 
 
-def test_typical_photo_baseline_is_damped_and_recorded(tmp_path):
-    import camera_profile_studio.image_look as module
+def test_typical_photo_baseline_is_shrunk_and_recorded(tmp_path):
     reference = fixture_rgb(cast=.04, tone=.4)
-    damping = module._TYPICAL_DAMPING
-    assert set(damping) == {'tone', 'cast', 'saturation'} and all(0 < value <= 1 for value in damping.values())
     typical, _ = fit_reference(tmp_path, reference)
-    algorithm = json.loads(dict(typical.provenance)['algorithm'])
-    assert algorithm['typical_photo_damping'] == damping
+    shrinkage = json.loads(dict(typical.provenance)['algorithm'])['shrinkage']
+    assert shrinkage['n_base'] is None and shrinkage['n_reference'] == 1
+    assert set(shrinkage['factors']) <= {'tone', 'cast', 'band', 'sector'}
+    assert all(0 <= value <= 1 for value in shrinkage['factors'].values())
     assert json.loads(dict(typical.provenance)['baseline'])['kind'] == 'typical_photo'
-    # the same statistics against an explicit base are applied undamped
-    stats = analyze_image_look((save_reference(tmp_path, reference),)).references[0].stats
-    full = module._fit(stats, module._typical(), ImageLookSettings(), 'base_images')
-    damped = module._fit(stats, module._typical(), ImageLookSettings(), 'typical_photo')
-    np.testing.assert_allclose(damped[1] - damped[0], damping['tone'] * (full[1] - full[0]), atol=5e-3)
-    np.testing.assert_allclose(damped[2], damping['cast'] * full[2], atol=1e-12)
-    np.testing.assert_allclose(damped[3] - 1, damping['saturation'] * (full[3] - 1), atol=1e-12)
-    assert not np.array_equal(damped[1], full[1])
+    # one photo against the typical photo is mostly scene content: its look is shrunk, the same statistics
+    # taken at face value are not
+    face, _ = fit_reference(tmp_path, reference, UNSHRUNK)
+    assert np.max(np.abs(deviation(face))) > .01
+    assert np.max(np.abs(deviation(typical))) < .5 * np.max(np.abs(deviation(face)))
+    # the user's own photo as the base: counted in the record, and no typical-photo warning
     explicit, _ = fit_with_base(tmp_path, reference, fixture_rgb())
-    assert json.loads(dict(explicit.provenance)['algorithm'])['typical_photo_damping'] is None
+    assert json.loads(dict(explicit.provenance)['algorithm'])['shrinkage']['n_base'] == 1
     assert explicit.baseline == 'base_images' and 'typical_photo_baseline' not in explicit.warnings
+
+
+def test_a_same_scene_pair_is_trusted_and_unrelated_photos_are_not(tmp_path):
+    base = fixture_rgb()
+    trusted, _ = fit_with_base(tmp_path, base ** .6, base)                 # the "after" of the user's own "before"
+    assert json.loads(dict(trusted.provenance)['algorithm'])['shrinkage']['same_scene']['noise_scale'] == 0
+    assert (apply_image_look(base, trusted) @ LUMA).mean() > (base @ LUMA).mean() + .05
+    other = np.random.default_rng(5).uniform(.05, .95, base.shape).astype(np.float32) ** .6
+    unrelated, _ = fit_with_base(tmp_path, other, base)                    # a different scene, brighter
+    record = json.loads(dict(unrelated.provenance)['algorithm'])['shrinkage']
+    assert record['same_scene']['noise_scale'] == 1
+    assert np.max(np.abs(deviation(unrelated))) < .3 * np.max(np.abs(deviation(trusted)))
+
+
+def test_the_same_crop_listed_ten_times_is_one_photo_for_the_shrinkage(tmp_path):
+    references = bright_ramp_references(tmp_path)
+    analysis = analyze_image_look(references)
+    pooled = fit_image_look(analysis)
+    single = fit_image_look(replace(analysis, references=(analysis.references[0],)))
+    shrinkage = json.loads(dict(pooled.provenance)['algorithm'])['shrinkage']
+    assert shrinkage['n_reference'] == 1
+    for field in ('tone_y', 'cast', 'band_gain', 'sector_gain'):
+        np.testing.assert_allclose(getattr(pooled, field), getattr(single, field), atol=1e-15)
+
+
+@pytest.mark.parametrize('value', [-.1, 1.1, float('nan'), True])
+def test_shrinkage_setting_is_validated(value):
+    with pytest.raises(ValidationError):
+        ImageLookSettings(shrinkage=value)
 
 
 def test_order_weights_duplicates_and_resolution_independent(tmp_path):
@@ -209,10 +238,11 @@ def test_order_weights_duplicates_and_resolution_independent(tmp_path):
 def test_roi_selects_normalized_region(tmp_path):
     warm, cool = fixture_rgb(cast=.04), fixture_rgb(cast=-.04)
     joined = np.concatenate((warm, cool), axis=1)
-    left, _ = fit_reference(tmp_path, joined, name='joined.png', roi=(0, 0, .5, 1))
-    right = fit_image_look(analyze_image_look((ImageLookReference(tmp_path / 'joined.png', roi=(.5, 0, 1, 1)),)))
+    left, _ = fit_reference(tmp_path, joined, UNSHRUNK, name='joined.png', roi=(0, 0, .5, 1))
+    right = fit_image_look(analyze_image_look((ImageLookReference(tmp_path / 'joined.png', roi=(.5, 0, 1, 1)),),
+                                              settings=UNSHRUNK))
     assert left.cast[:, 1].mean() > 0 > right.cast[:, 1].mean()
-    exact, _ = fit_reference(tmp_path, warm, name='warm.png')
+    exact, _ = fit_reference(tmp_path, warm, UNSHRUNK, name='warm.png')
     for field in ('tone_y', 'cast', 'band_gain', 'sector_gain'):
         np.testing.assert_array_equal(getattr(left, field), getattr(exact, field))
     roi = json.loads(dict(left.provenance)['references'])[0]['roi']
@@ -225,7 +255,7 @@ def test_limited_color_coverage_is_reported_without_hue_edits(tmp_path, kind):
     rgb = np.repeat(value, 3, axis=2)
     if kind == 'green':
         rgb *= [.4, 1, .4]
-    model, analysis = fit_reference(tmp_path, rgb)
+    model, analysis = fit_reference(tmp_path, rgb, UNSHRUNK)
     assert 'limited_color_coverage' in analysis.warnings
     # a grey crop has no colourful pixels; the green one covers a single hue sector
     assert analysis.references[0].color_support <= (0 if kind == 'grey' else 1 / 12 + 1e-9)
@@ -242,7 +272,7 @@ def test_limited_color_coverage_is_reported_without_hue_edits(tmp_path, kind):
 
 def test_insufficiency_coverage_clipping(tmp_path):
     rgb = np.linspace(.48, .52, 48).reshape(4, 4, 3)
-    model, analysis = fit_reference(tmp_path, rgb)
+    model, analysis = fit_reference(tmp_path, rgb, UNSHRUNK)
     assert {'insufficient_samples', 'limited_luminance_coverage', 'limited_color_coverage'} <= set(analysis.warnings)
     assert isinstance(model, ImageLookModel) and np.all(np.diff(model.tone_y) >= 0)
     _, analysis = fit_reference(tmp_path, np.clip(fixture_rgb() * 1.8, 0, 1), name='clipped.png')
@@ -585,7 +615,7 @@ def test_output_clipping_warning_from_safety_grid(tmp_path):
     # A strongly saturated look applied to a flat-colour base pushes colours outside sRGB.
     muted = .5 + .25 * (fixture_rgb() - .5)
     vivid = np.clip(.5 + 2.2 * (fixture_rgb() - .5), 0, 1)
-    model, _ = fit_with_base(tmp_path, vivid, muted)
+    model, _ = fit_with_base(tmp_path, vivid, muted, UNSHRUNK)
     assert 'output_clipping' in model.warnings
     disabled, _ = fit_with_base(tmp_path, vivid, muted, ImageLookSettings(**ZERO))
     assert 'output_clipping' not in disabled.warnings
@@ -599,7 +629,7 @@ def bright_ramp_references(tmp_path):
 def test_ten_real_grayscale_ramps_pool_like_one(tmp_path):
     references = bright_ramp_references(tmp_path)
     assert len({ref.path for ref in references}) == 10
-    analysis = analyze_image_look(references)
+    analysis = analyze_image_look(references, settings=UNSHRUNK)
     assert not analysis.conflicts
     individual = [fit_image_look(replace(analysis, references=(record,))) for record in analysis.references]
     model = fit_image_look(analysis)
@@ -656,14 +686,14 @@ def test_brightened_reference_with_the_original_as_base_brightens(tmp_path):
 
 def test_base_color_cast_and_saturation_are_measured_against_the_base(tmp_path):
     base = fixture_rgb(cast=.03)
-    model, _ = fit_with_base(tmp_path, fixture_rgb(cast=.03), base)
+    model, _ = fit_with_base(tmp_path, fixture_rgb(cast=.03), base, UNSHRUNK)
     assert np.max(np.abs(model.cast)) < 1e-9          # same cast on both sides: nothing to add
-    warmer, _ = fit_with_base(tmp_path, fixture_rgb(cast=.06), base)
+    warmer, _ = fit_with_base(tmp_path, fixture_rgb(cast=.06), base, UNSHRUNK)
     assert warmer.cast[:, 1].mean() > .005
     grey = base.mean(axis=2, keepdims=True)
-    vivid, _ = fit_with_base(tmp_path, np.clip(grey + 1.5 * (base - grey), 0, 1), base)
+    vivid, _ = fit_with_base(tmp_path, np.clip(grey + 1.5 * (base - grey), 0, 1), base, UNSHRUNK)
     assert vivid.band_gain.mean() > 1.1 and vivid.sector_gain.shape == (12,)
-    dull, _ = fit_with_base(tmp_path, grey + .5 * (base - grey), base)
+    dull, _ = fit_with_base(tmp_path, grey + .5 * (base - grey), base, UNSHRUNK)
     assert dull.band_gain.mean() < .9
 
 
