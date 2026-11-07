@@ -67,6 +67,16 @@ def failing(exc):
         raise exc
     return opener
 
+# The GUI tests below run with the real __version__ as the current version, so their releases must be newer than it:
+# the same shape as CANNED (a draft, a newer pre-release, a newer stable release, and older ones).
+CANNED_NEWER = [
+    release("v0.5.0", draft=True),                     # draft: never offered
+    release("v0.4.1-beta", pre=True),                  # pre-release: only when allowed
+    release("v0.4.0"),                                 # newest stable
+    release("v0.2.6"),                                 # older than the running version
+    release("v0.2.5-beta", pre=True),                  # older
+]
+
 
 # ---------------------------------------------------------------- versions
 def test_semver_precedence_including_prereleases():
@@ -227,7 +237,7 @@ def test_manual_check_shows_the_result_without_network(qtbot, win):
     def stub(current, include_prereleases=False):
         stub_calls.append((current, include_prereleases))
         return updates.UpdateCheck(current, updates.check_for_update(current, include_prereleases=include_prereleases,
-                                                                      opener=serve(CANNED)).release)
+                                                                      opener=serve(CANNED_NEWER)).release)
 
     ctl.checker = stub
     assert win.act_check_updates in win.help_menu.actions() and win.act_check_updates.text().replace("&", "") == "Check for updates…"
@@ -235,13 +245,13 @@ def test_manual_check_shows_the_result_without_network(qtbot, win):
     qtbot.waitUntil(lambda: ctl.dialog is not None, timeout=5000)
     dialog = ctl.dialog
     assert stub_calls == [(__version__, True)]                        # pre-releases default ON while the major version is 0
-    assert dialog.release.version == "0.2.9-beta" and "0.2.9-beta" in dialog.heading.text()
+    assert dialog.release.version == "0.4.1-beta" and "0.4.1-beta" in dialog.heading.text()
     assert "2026-11-02" in dialog.summary.text() and f"version {__version__}" in dialog.summary.text()
     assert dialog.primary.text() == "Open download page" and not dialog.can_install      # portable copy: no self-update
     assert "portable" in dialog.reason.text() and dialog.notes.toPlainText() == "Notes\nline"
-    assert str(ctl.ctx.settings.value("updates/last_status")) == "update" and "0.2.9-beta" in ctl.last_result_text()
+    assert str(ctl.ctx.settings.value("updates/last_status")) == "update" and "0.4.1-beta" in ctl.last_result_text()
     dialog.skip_button.click()
-    assert ctl.skipped_version == "0.2.9-beta" and "skipped" in ctl.last_result_text()
+    assert ctl.skipped_version == "0.4.1-beta" and "skipped" in ctl.last_result_text()
 
     # "Check now" on the Settings page: disabled while a check runs, and a current version says so
     ctl.checker = lambda current, include_prereleases=False: updates.UpdateCheck(current)
@@ -257,13 +267,13 @@ def test_manual_check_shows_the_result_without_network(qtbot, win):
 def test_automatic_check_is_gated_and_shows_a_dismissible_bar(qtbot, win):
     ctl = win.updates
     ctl.checker = lambda current, include_prereleases=False: updates.UpdateCheck(
-        current, updates.check_for_update(current, include_prereleases=False, opener=serve(CANNED)).release)
+        current, updates.check_for_update(current, include_prereleases=False, opener=serve(CANNED_NEWER)).release)
     ctl.auto_check = False
     assert not ctl.maybe_auto_check()                                   # setting off: nothing happens
     ctl.auto_check = True
     assert ctl.maybe_auto_check()                                       # never checked: due
     qtbot.waitUntil(lambda: not win.update_bar.isHidden(), timeout=5000)
-    assert "0.2.8" in win.update_bar.label.text() and ctl.dialog is None     # a notice only, no dialog
+    assert "0.4.0" in win.update_bar.label.text() and ctl.dialog is None     # a notice only, no dialog
     assert not ctl.maybe_auto_check()                                   # checked just now: not due for 24 h
     win.update_bar.dismiss.click()
     assert win.update_bar.isHidden()

@@ -1,8 +1,33 @@
-# Building Camera Profile Studio 0.2.8-beta on Windows
+# Building Camera Profile Studio 0.3.0-alpha.1 on Windows
 
-## What 0.2.8-beta changes
+## What 0.3.0-alpha.1 changes
 
-0.2.8-beta is 0.2.7 plus an error report for Camera Match, a measured bake error for the exported LUT,
+0.3.0-alpha.1 is the first alpha of 0.3.0. It contains everything 0.2.8-beta contained (below; that version was
+prepared but never built or released) and the first part of the Image Look rework. Pre-release identifiers
+follow SemVer 2.0: `0.2.7` < `0.3.0-alpha.1` < `0.3.0-alpha.2` < `0.3.0-beta` < `0.3.0`; the tag is `v0.3.0-alpha.1`.
+
+- **Image Look no longer reads scene content as a look.** With a reference set that carries no look, photos used to
+  move by CIEDE2000 9-17 (user's own photos given) or 4-5 (not given); now by 0.0-1.4 (mean, 24 real photos).
+  Each parameter group (tone, colour cast, saturation per lightness band, saturation per hue sector) is shrunk
+  towards zero against the natural spread between unrelated photos (`image_look._NATURAL_SPREAD`, measured on 140
+  photographs with `scripts/derive_natural_spread.py`; numbers only). The fixed typical-photo damping is gone.
+- **Same-scene pairs are trusted.** A reference with a partner among the base photos that shows the same scene
+  (the user's photo before and after editing; rank correlation of an 8x8 lightness layout >= 0.95) is taken at face
+  value, including its brightness change. The same crop listed twice counts once.
+- **New setting `shrinkage`** (0..1, default 1; CLI `settings.shrinkage`). 0 takes every difference at face value.
+- **The shared-set estimate is now safe but weak.** Subtle tone curves and saturation changes cannot be told from
+  scene content in an unpaired set of up to a few photos. The strong, photo-specific transfer (one reference photo
+  onto one photo) and the combination of both are planned for the next alphas.
+- **Benchmark.** `tests/look_bench.py` and `tests/test_image_look_bench.py` build synthetic scenes with known looks
+  (no photos needed); the gate fails if a reference without a look changes photos (median CIEDE2000 > 1, 95th
+  percentile > 3) or a known look is made worse.
+- **Versioning.** The launcher is `packaging/windows-launcher/Build-0.3.0-alpha.1.cmd` (`Build.bat` calls it).
+  `importlib.metadata` reports the PEP 440 spelling `0.3.0a1` of the same version; the scripts that read it
+  (`scripts/build-release.ps1`, `scripts/verify_distribution_image_look.py`) compare against that spelling.
+
+## What 0.2.8-beta changed
+
+0.2.8-beta was 0.2.7 plus an error report for Camera Match, a measured bake error for the exported LUT,
 and small changes to Image Look. The version is written as a SemVer 2.0 string with its pre-release part
 everywhere (`pyproject.toml`, `__version__`, file names, tag `v0.2.8-beta`); the next stable release is `0.2.8`.
 
@@ -28,9 +53,8 @@ everywhere (`pyproject.toml`, `__version__`, file names, tag `v0.2.8-beta`); the
   for unrelated photos, including in the text of the unavailable "Unrelated reference photo" mode; the Image
   Look page points back to Camera Match for corresponding data.
 - **Unreadable images**: bulk actions to remove or retry the rows that could not be read.
-- **Versioning**: the launcher is `packaging/windows-launcher/Build-0.2.8-beta.cmd` (`Build.bat` calls it).
-  `importlib.metadata` reports the PEP 440 spelling `0.2.8b0` of the same version; the scripts that read it
-  (`scripts/build-release.ps1`, `scripts/verify_distribution_image_look.py`) compare against that spelling.
+- **Versioning**: the launcher was `Build-0.2.8-beta.cmd` (renamed for 0.3.0-alpha.1); the version was written as
+  a SemVer 2.0 string with its pre-release part (PEP 440 spelling `0.2.8b0` in `importlib.metadata`).
 
 ## What 0.2.7 changed
 
@@ -79,9 +103,9 @@ everywhere (`pyproject.toml`, `__version__`, file names, tag `v0.2.8-beta`); the
   `last_check`, `last_status`, `last_version` and `skipped_version`.
 - Request: one plain `GET https://api.github.com/repos/Koczalski/CameraProfileStudio/releases?per_page=20`
   with `User-Agent: CameraProfileStudio/<version>`; nothing else is sent. Drafts are ignored.
-- Versions are compared as SemVer 2.0 (`0.2.8` > `0.2.8-beta` > `0.2.7`; tag prefix `v` optional), so
+- Versions are compared as SemVer 2.0 (`0.3.0` > `0.3.0-alpha.1` > `0.2.7`; tag prefix `v` optional), so
   **every release needs a higher version than the one before**. The app's own version carries the
-  pre-release part (`0.2.8-beta`), so the tag `v0.2.8-beta` is not offered to it, and the later `0.2.8` is.
+  pre-release part (`0.3.0-alpha.1`), so the tag `v0.3.0-alpha.1` is not offered to it, and the later `0.3.0` is.
   (0.2.7 shipped as `0.2.7` under the tag `v0.2.7-beta`; an app that is 0.2.7 is not offered that tag.)
   Pre-release tags are offered only when allowed.
 - Assets are found by suffix: `*-Setup.exe` and `DELIVERY_SHA256SUMS.txt` (both are needed to install),
@@ -243,7 +267,7 @@ Use a new extraction after a failed run; it does not erase or reuse existing out
 Do not delete the original delivery output to make it appear fresh.
 
 The script collects filtered sources into
-`output/releases/0.2.8-beta/workspace`, creates a stage-local tool area, rebuilds pinned
+`output/releases/0.3.0-alpha.1/workspace`, creates a stage-local tool area, rebuilds pinned
 LittleCMS, downloads all nine revision/SHA256-pinned legacy test profiles into
 stage-local input, retrieves license/provenance documents, and runs the **full pytest
 suite**, not a reduced replacement suite. A test failure blocks compilation. Test
@@ -256,7 +280,7 @@ as `source-tests-parallel.*` and `source-tests-gui.*`). A `.venv` without xdist 
 whole suite serially instead. `CPS_DISABLE_UPDATE_CHECK=1` is set for tests and smoke runs,
 so they never reach the network or show the update bar.
 
-It snapshots fresh build inputs, compiles new source with Nuitka and the 0.2.8-beta Inno
+It snapshots fresh build inputs, compiles new source with Nuitka and the 0.3.0-alpha.1 Inno
 Setup version, checks input stability, then runs hosted-style verification. That smoke
 includes native CLI convert, DCP look, SciPy match, single/multiple-reference and base-image image-look,
 offscreen GUI liveness, and exact-AppId-protected installer/uninstall (silent install into a sandbox
@@ -278,14 +302,14 @@ local release wrapper still runs all mandatory native desktop gates.
 
 Successful fresh outputs:
 
-- `output/releases/0.2.8-beta/CameraProfileStudio-0.2.8-beta-Setup.exe`
-- `output/releases/0.2.8-beta/CameraProfileStudio-0.2.8-beta-Portable.zip`
-- `output/releases/0.2.8-beta/CameraProfileStudio-0.2.8-beta-Source.zip`
-- `output/releases/0.2.8-beta/DELIVERY_SHA256SUMS.txt`
-- `output/releases/0.2.8-beta/source-tests.log` and `source-tests.xml`
-- `output/releases/0.2.8-beta/fresh-build-inputs.json` and `phase-timings.json` (seconds per build phase;
+- `output/releases/0.3.0-alpha.1/CameraProfileStudio-0.3.0-alpha.1-Setup.exe`
+- `output/releases/0.3.0-alpha.1/CameraProfileStudio-0.3.0-alpha.1-Portable.zip`
+- `output/releases/0.3.0-alpha.1/CameraProfileStudio-0.3.0-alpha.1-Source.zip`
+- `output/releases/0.3.0-alpha.1/DELIVERY_SHA256SUMS.txt`
+- `output/releases/0.3.0-alpha.1/source-tests.log` and `source-tests.xml`
+- `output/releases/0.3.0-alpha.1/fresh-build-inputs.json` and `phase-timings.json` (seconds per build phase;
   `workspace/output/distribution/build-windows-phases.json` splits the packaging phase further)
-- `output/releases/0.2.8-beta/workspace/output/distribution/` build/smoke proof
+- `output/releases/0.3.0-alpha.1/workspace/output/distribution/` build/smoke proof
 
 The fresh snapshot records build provenance; it is NOT the approved release freeze
 of the original delivery worktree. Rebuilding functionality does not promise
@@ -306,8 +330,8 @@ Measured on the 0.2.5 build log (16-core/32-thread Ryzen 9 7950X, 30 min): Nuitk
   `lcms2.dll` keyed by source SHA-256 + compiler/SDK versions + build flags (its functional and PE validation
   still run). The portable ZIP is built while ISCC runs; `audit_native.py` inspects binaries in parallel.
 - Caches live in `%LOCALAPPDATA%\CameraProfileStudio-build-cache` (`-CacheRoot` to move it, delete the folder to
-  reset it). They are only enabled by the launcher (`Build-0.2.8-beta.cmd`, environment variable `CPS_BUILD_CACHE`);
-  running the scripts directly keeps the cache-free behaviour. `Build-0.2.8-beta.cmd -NoCache` forces a clean build.
+  reset it). They are only enabled by the launcher (`Build-0.3.0-alpha.1.cmd`, environment variable `CPS_BUILD_CACHE`);
+  running the scripts directly keeps the cache-free behaviour. `Build-0.3.0-alpha.1.cmd -NoCache` forces a clean build.
   Every cached file is content-checked (SHA-256 or a content-derived key); the EXE is always relinked and
   the input-stability checks are unchanged.
 - Expected: about 30 min before, roughly 13 to 16 min after on the machine above (Inno `lzma2/fast`
@@ -316,7 +340,7 @@ Measured on the 0.2.5 build log (16-core/32-thread Ryzen 9 7950X, 30 min): Nuitk
   `scipy.integrate._lebedev`), which `--jobs` and the C cache do not touch. Real-time antivirus scanning of the
   build folder and the cache folder slows many small writes; excluding them in Windows Security is optional
   and is never done by the scripts.
-- `Build-0.2.8-beta.cmd` prints `推定所要時間 約 N 分` at start and `経過 m:ss / 残り 約 N 分` at each step start. The
+- `Build-0.3.0-alpha.1.cmd` prints `推定所要時間 約 N 分` at start and `経過 m:ss / 残り 約 N 分` at each step start. The
   estimate is the per-step seconds of the most recent successful `build-logs\*\summary.json`; without one only
   the elapsed time is shown. There is no periodic refresh.
 

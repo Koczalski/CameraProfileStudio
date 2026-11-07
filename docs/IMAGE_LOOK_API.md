@@ -51,6 +51,7 @@ class ImageLookSettings:
     color_amount: float = 1.0
     saturation_amount: float = 1.0
     acknowledge_conflicts: bool = False
+    shrinkage: float = 1.0              # 0..1; 0 takes every difference at face value (0.3.0-alpha.1)
 
 @dataclass(frozen=True, slots=True)
 class LookStatistics:                   # Oklab statistics of one image or one weighted pool
@@ -106,6 +107,16 @@ def apply_image_look(rgb: RGB, model: ImageLookModel, *,
                      context: JobContext | None = None) -> RGB: ...
 def create_image_look_transform(model: ImageLookModel) -> RGBTransform: ...
 ```
+
+**Scene content versus look (0.3.0-alpha.1).** The fit shrinks each parameter group (tone with the overall
+lightness shift removed, colour cast, saturation per lightness band, saturation per hue sector) towards zero with a
+positive-part James-Stein factor `max(0, 1 - (lambda*shrinkage)^2 * G * (1/n_ref + 1/n_base) / |d|^2)^2`, where `G`
+is the 90th percentile (hue sectors: the maximum) of the squared length of the same parameters fitted for one
+photograph against the typical photo (`_NATURAL_SPREAD`, `lambda = 1.5`). `n` is the effective number of distinct
+photos (Kish; the same file and crop count once). A reference that has a same-scene partner among the base photos
+(rank correlation of the 8x8 lightness layouts `ImageLookReferenceAnalysis.layout` >= 0.95) adds no scene noise
+and keeps its brightness change. The factors and the same-scene shares are recorded in the `algorithm`
+provenance under `shrinkage`.
 
 Helpers `srgb_to_oklab`, `oklab_to_srgb`, `look_statistics(rgb_samples)` and
 `pool_statistics(records, weights)` are public for diagnostics and tests. A model whose
@@ -263,7 +274,8 @@ fit enforces refusal. The per-image warnings are collected from `reference` imag
     "tone_amount": 1.0,
     "color_amount": 1.0,
     "saturation_amount": 1.0,
-    "acknowledge_conflicts": false
+    "acknowledge_conflicts": false,
+    "shrinkage": 1.0
   }
 }
 ```

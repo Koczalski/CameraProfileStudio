@@ -1,7 +1,7 @@
-﻿# Camera Profile Studio 0.2.8-beta のビルド（Windows）
+﻿# Camera Profile Studio 0.3.0-alpha.1 のビルド（Windows）
 
-`Build-0.2.8-beta.cmd` をダブルクリックすると、同梱ソース（`CameraProfileStudio-0.2.8-beta-Source`）の
-公式手順（`docs/BUILD_0.2.8-beta.md`）を、新しいビルドフォルダーで最初から最後まで実行します。
+`Build-0.3.0-alpha.1.cmd` をダブルクリックすると、同梱ソース（`CameraProfileStudio-0.3.0-alpha.1-Source`）の
+公式手順（`docs/BUILD_0.3.0-alpha.1.md`）を、新しいビルドフォルダーで最初から最後まで実行します。
 
 ## 流れ
 
@@ -9,9 +9,9 @@
 2. 開始してよいか確認（Enter で開始）
 3. ソースを `b\<日時>` へ複製 → `-ValidateOnly` → `.venv` 作成と固定版パッケージのインストール
 4. `-BuildApproved`：全テスト → LittleCMS → EXE（Nuitka）→ インストーラー（Inno Setup）→ 配布物の検査
-5. 成果物を `release-0.2.8-beta` へコピーし、SHA-256 を照合。ポータブル版も展開します。
+5. 成果物を `release-0.3.0-alpha.1` へコピーし、SHA-256 を照合。ポータブル版も展開します。
 
-0.2.8-beta の変更点（カメラマッチの誤差レポート、画像ルックの比率スライダーなど）と、それ以前の変更点は `docs\BUILD_0.2.8-beta.md` にあります。
+0.3.0-alpha.1 の変更点（画像ルックが写真の中身をルックと取り違えないようにする縮小、同じ場面のペアの検出、0.2.8-beta で用意したカメラマッチの誤差レポートや比率スライダーなど）と、それ以前の変更点は `docs\BUILD_0.3.0-alpha.1.md` にあります。
 
 所要時間の目安は、初回 15～40 分、キャッシュが効く 2 回目以降はさらに短縮されます（以前は約 30 分。PC とネットワークによります）。元のソースフォルダー、既存の `launcher.dist`、0.2.0 の配布物は変更しません。
 
@@ -30,10 +30,10 @@
 ## できあがるもの
 
 ```
-release-0.2.8-beta\
-  CameraProfileStudio-0.2.8-beta-Setup.exe
-  CameraProfileStudio-0.2.8-beta-Portable.zip
-  CameraProfileStudio-0.2.8-beta-Source.zip
+release-0.3.0-alpha.1\
+  CameraProfileStudio-0.3.0-alpha.1-Setup.exe
+  CameraProfileStudio-0.3.0-alpha.1-Portable.zip
+  CameraProfileStudio-0.3.0-alpha.1-Source.zip
   DELIVERY_SHA256SUMS.txt / source-tests.log / smoke-results.json など
   portable\launcher.dist\CameraProfileStudio.exe   ← そのまま起動できる EXE
 ```
@@ -41,12 +41,12 @@ release-0.2.8-beta\
 ## オプション（コマンドプロンプトから）
 
 ```
-Build-0.2.8-beta.cmd -CheckOnly                 事前チェックだけ行う
-Build-0.2.8-beta.cmd -BuildRoot C:\cpsb         ビルドフォルダーの場所を変える（E: が NTFS でない場合など）
-Build-0.2.8-beta.cmd -Python C:\...\python.exe  使う Python を指定する
-Build-0.2.8-beta.cmd -Yes                       開始前の確認を省く
-Build-0.2.8-beta.cmd -NoCache                   キャッシュを使わず、すべて新規に取得・コンパイルする（クリーンビルド）
-Build-0.2.8-beta.cmd -CacheRoot D:\cpsc         キャッシュの場所を変える
+Build-0.3.0-alpha.1.cmd -CheckOnly                 事前チェックだけ行う
+Build-0.3.0-alpha.1.cmd -BuildRoot C:\cpsb         ビルドフォルダーの場所を変える（E: が NTFS でない場合など）
+Build-0.3.0-alpha.1.cmd -Python C:\...\python.exe  使う Python を指定する
+Build-0.3.0-alpha.1.cmd -Yes                       開始前の確認を省く
+Build-0.3.0-alpha.1.cmd -NoCache                   キャッシュを使わず、すべて新規に取得・コンパイルする（クリーンビルド）
+Build-0.3.0-alpha.1.cmd -CacheRoot D:\cpsc         キャッシュの場所を変える
 ```
 
 ## 速くするしくみ（キャッシュと並列化）
@@ -69,8 +69,8 @@ Build-0.2.8-beta.cmd -CacheRoot D:\cpsc         キャッシュの場所を変�
 ## 注意
 
 - コード署名はしていません。他の PC へ配ると SmartScreen の確認が出ることがあります。
-- 配布物の検査は「ホスト型スモーク」です。ネイティブのデスクトップ画面での受け入れ確認（画像ルック作成ウィンドウの目視確認など）は含みません（`docs/BUILD_0.2.8-beta.md` の記載どおり）。
+- 配布物の検査は「ホスト型スモーク」です。ネイティブのデスクトップ画面での受け入れ確認（画像ルック作成ウィンドウの目視確認など）は含みません（`docs/BUILD_0.3.0-alpha.1.md` の記載どおり）。
 
 ## リポジトリから実行する場合
 
-`packaging\windows-launcher\Build-0.2.8-beta.cmd`（または同じフォルダーの `Build.bat`）をリポジトリ内から実行すると、隣に `CameraProfileStudio-0.2.8-beta-Source` がない場合はリポジトリのルートをソースとして使います。`.git`・`output`・`.venv`・ビルドフォルダー（`b`）・`build-logs`・`release-*` は複製しません。ビルドフォルダー・ログ・成果物はこのフォルダーの `b\`・`build-logs\`・`release-0.2.8-beta\` にでき、いずれも `.gitignore` で除外しています。パスが長いという警告が出る場合は `Build-0.2.8-beta.cmd -BuildRoot C:\cpsb` のように短い場所を指定してください。
+`packaging\windows-launcher\Build-0.3.0-alpha.1.cmd`（または同じフォルダーの `Build.bat`）をリポジトリ内から実行すると、隣に `CameraProfileStudio-0.3.0-alpha.1-Source` がない場合はリポジトリのルートをソースとして使います。`.git`・`output`・`.venv`・ビルドフォルダー（`b`）・`build-logs`・`release-*` は複製しません。ビルドフォルダー・ログ・成果物はこのフォルダーの `b\`・`build-logs\`・`release-0.3.0-alpha.1\` にでき、いずれも `.gitignore` で除外しています。パスが長いという警告が出る場合は `Build-0.3.0-alpha.1.cmd -BuildRoot C:\cpsb` のように短い場所を指定してください。
